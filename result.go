@@ -32,8 +32,7 @@ type Result struct {
 
 	err error
 
-	conn   net.Conn
-	rd     *bufio.Reader
+	conn   *conn
 	client *Client
 
 	pipeline pipeline
@@ -135,7 +134,7 @@ func (r *Result) writeTo(w io.Writer) (int64, error) {
 	r.conn.SetDeadline(time.Now().Add(time.Second * 5))
 
 	var typ byte
-	typ, r.err = r.rd.ReadByte()
+	typ, r.err = r.conn.rd.ReadByte()
 	if r.err != nil {
 		r.err = fmt.Errorf("read type: %w", r.err)
 		return 0, r.err
@@ -145,7 +144,7 @@ func (r *Result) writeTo(w io.Writer) (int64, error) {
 	case '+':
 		// Simple string
 		var s []byte
-		s, r.err = readSimpleString(r.rd)
+		s, r.err = readSimpleString(r.conn.rd)
 		if r.err != nil {
 			return 0, r.err
 		}
@@ -156,7 +155,7 @@ func (r *Result) writeTo(w io.Writer) (int64, error) {
 	case '-':
 		// Error
 		var s []byte
-		s, r.err = readSimpleString(r.rd)
+		s, r.err = readSimpleString(r.conn.rd)
 		if r.err != nil {
 			return 0, r.err
 		}
@@ -167,7 +166,7 @@ func (r *Result) writeTo(w io.Writer) (int64, error) {
 	case '$':
 		// Bulk string
 		var n int
-		n, r.err = readBulkString(r.conn, r.rd, w)
+		n, r.err = readBulkString(r.conn, r.conn.rd, w)
 		r.pipeline.at++
 		return int64(n), r.err
 	case ':':
@@ -200,6 +199,14 @@ func (r *Result) Ok() (bool, error) {
 	return string(got) == "OK", nil
 }
 
+// Next returns true if there are more results to read.
+func (r *Result) Next() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return r.pipeline.at < r.pipeline.end
+}
+
 // Close releases all resources associated with the result.
 // It is safe to call Close multiple times.
 func (r *Result) Close() error {
@@ -228,6 +235,5 @@ func (r *Result) close() error {
 	if r.err == nil {
 		r.client.putConn(r.conn)
 	}
-	bufReaderPool.Put(r.rd)
 	return nil
 }

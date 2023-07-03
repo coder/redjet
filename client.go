@@ -55,36 +55,34 @@ func (c *Client) initPool() {
 	}
 }
 
-func (c *Client) getConn(ctx context.Context) (net.Conn, error) {
+func (c *Client) getConn(ctx context.Context) (*conn, error) {
 	c.initPool()
 
 	if conn, ok := c.pool.tryGet(ctx); ok {
 		return conn, nil
 	}
 
-	return c.Dial(ctx)
+	nc, err := c.Dial(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("dial: %w", err)
+	}
+
+	return &conn{
+		Conn:     nc,
+		lastUsed: time.Now(),
+		wr:       bufio.NewWriter(nc),
+		rd:       bufio.NewReader(nc),
+	}, nil
 }
 
-func (c *Client) putConn(conn net.Conn) {
+func (c *Client) putConn(conn *conn) {
 	c.initPool()
 	// Clear any deadline.
 	conn.SetDeadline(time.Time{})
-	c.pool.put(conn, c.IdleTimeout)
+	c.pool.put(conn)
 }
 
 const crlf = "\r\n"
-
-var bufWriterPool = sync.Pool{
-	New: func() interface{} {
-		return bufio.NewWriterSize(nil, 32*1024)
-	},
-}
-
-var bufReaderPool = sync.Pool{
-	New: func() interface{} {
-		return bufio.NewReaderSize(nil, 32*1024)
-	},
-}
 
 func writeBulkString(w *bufio.Writer, s string) {
 	w.WriteString("$")
@@ -102,45 +100,51 @@ func writeBulkBytes(w *bufio.Writer, b []byte) {
 	w.WriteString(crlf)
 }
 
-// Command sends a command to the server and returns the result. The error
-// is encoded into the result for ergonomics.
+// Pipeline sends a command to the server and returns the promise of a result.
+// r may be nil, as in the case of the first command in a pipeline. Each successive
+// call to Pipeline should re-use the last returned Result.
 //
-// The result must be closed or drained to avoid leaking resources.
-func (c *Client) Command(ctx context.Context, cmd string, args ...any) (r *Result) {
-	conn, err := c.getConn(ctx)
-	if err != nil {
-		return &Result{
-			err: fmt.Errorf("get conn: %w", err),
+// It is safe to keep a pipeline running for a long time, with many send and
+// receive cycles.
+func (c *Client) Pipeline(ctx context.Context, r *Result, cmd string, args ...any) *Result {
+	var (
+		conn *conn
+		err  error
+	)
+	if r == nil {
+		conn, err = c.getConn(ctx)
+		if err != nil {
+			return &Result{
+				err: fmt.Errorf("get conn: %w", err),
+			}
 		}
+	} else {
+		conn = r.conn
 	}
-
-	// The buffered writer reduces syscall overhead and gives us cleaner code.
-	wr := bufWriterPool.Get().(*bufio.Writer)
-	wr.Reset(conn)
-	defer bufWriterPool.Put(wr)
 
 	// We're instructing redis that we're sending an array of the command
 	// and its arguments.
-	wr.WriteString("*")
-	wr.WriteString(strconv.Itoa(len(args) + 1))
-	wr.WriteString(crlf)
+	conn.wr.WriteString("*")
+	conn.wr.WriteString(strconv.Itoa(len(args) + 1))
+	conn.wr.WriteString(crlf)
 
-	writeBulkString(wr, cmd)
+	writeBulkString(conn.wr, cmd)
 
 	for _, arg := range args {
 		switch arg := arg.(type) {
 		case string:
-			writeBulkString(wr, arg)
+			writeBulkString(conn.wr, arg)
 		case []byte:
-			writeBulkBytes(wr, arg)
+			writeBulkBytes(conn.wr, arg)
 		default:
-			r.err = fmt.Errorf("unsupported argument type %T", arg)
 			conn.Close()
-			return
+			return &Result{
+				err: fmt.Errorf("unsupported argument type %T", arg),
+			}
 		}
 	}
 
-	err = wr.Flush()
+	err = conn.wr.Flush()
 	if err != nil {
 		conn.Close()
 		return &Result{
@@ -148,27 +152,35 @@ func (c *Client) Command(ctx context.Context, cmd string, args ...any) (r *Resul
 		}
 	}
 
-	rd := bufReaderPool.Get().(*bufio.Reader)
-	rd.Reset(conn)
-
-	success := &Result{
-		conn:    conn,
-		rd:      rd,
-		client:  c,
-		closeCh: make(chan struct{}),
-		pipeline: pipeline{
-			at:  0,
-			end: 1,
-		},
-	}
-	go func() {
-		select {
-		case <-ctx.Done():
-			success.Close()
-		case <-success.closeCh:
+	if r == nil {
+		r = &Result{
+			conn:    conn,
+			client:  c,
+			closeCh: make(chan struct{}),
+			pipeline: pipeline{
+				at:  0,
+				end: 1,
+			},
 		}
-	}()
-	return success
+		go func() {
+			select {
+			case <-ctx.Done():
+				r.Close()
+			case <-r.closeCh:
+			}
+		}()
+	} else {
+		r.pipeline.end++
+	}
+	return r
+}
+
+// Command sends a command to the server and returns the result. The error
+// is encoded into the result for ergonomics.
+//
+// The result must be closed or drained to avoid leaking resources.
+func (c *Client) Command(ctx context.Context, cmd string, args ...any) *Result {
+	return c.Pipeline(ctx, nil, cmd, args...)
 }
 
 func (c *Client) Close() error {

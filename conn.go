@@ -1,6 +1,7 @@
 package redjet
 
 import (
+	"bufio"
 	"context"
 	"net"
 	"time"
@@ -8,7 +9,8 @@ import (
 
 type conn struct {
 	net.Conn
-
+	wr       *bufio.Writer
+	rd       *bufio.Reader
 	lastUsed time.Time
 }
 
@@ -61,8 +63,10 @@ func (p *connPool) clean() {
 // connections, it returns false.
 func (p *connPool) tryGet(ctx context.Context) (*conn, bool) {
 	select {
-	case c := <-p.free:
-		c.lastUsed = time.Now()
+	case c, ok := <-p.free:
+		if !ok {
+			return nil, false
+		}
 		return c, true
 	default:
 		return nil, false
@@ -71,10 +75,8 @@ func (p *connPool) tryGet(ctx context.Context) (*conn, bool) {
 
 // put returns a connection to the pool.
 // If the pool is full, the connection is closed.
-func (p *connPool) put(nc net.Conn, idleTimeout time.Duration) {
-	c := &conn{
-		Conn: nc,
-	}
+func (p *connPool) put(c *conn) {
+	c.lastUsed = time.Now()
 
 	select {
 	case p.free <- c:
