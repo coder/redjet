@@ -174,6 +174,28 @@ func TestClient_ShortRead(t *testing.T) {
 	}
 }
 
+func TestClient_LenReader(t *testing.T) {
+	t.Parallel()
+
+	_, client := startRedisServer(t)
+
+	ctx := context.Background()
+
+	v := strings.Repeat("x", 64)
+	buf := bytes.NewBuffer(
+		[]byte(v),
+	)
+
+	var _ LenReader = buf
+
+	err := client.Command(ctx, "SET", "foo", buf).Ok()
+	require.NoError(t, err)
+
+	got, err := client.Command(ctx, "GET", "foo").Bytes()
+	require.NoError(t, err)
+	require.Equal(t, []byte(v), got)
+}
+
 func Benchmark_Get(b *testing.B) {
 	_, client := startRedisServer(b)
 

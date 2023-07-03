@@ -9,6 +9,31 @@ Redis command. Instead, it offers a generic interface that supports [all command
 and options](https://redis.io/commands/). While this approach has less
 type-safety, it provides forward compatibility with new Redis features.
 
+## Basic Usage
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+
+    "github.com/ammario/redjet"
+)
+
+func main() {
+    client := redjet.New("localhost:6379")
+    ctx := context.Background()
+
+    err := client.Command(ctx, "SET", "foo", "bar").Ok()
+    // check error
+
+    got, err := client.Command(ctx, "GET", "foo").Bytes()
+    // check error
+    // got == []byte("bar")
+}
+```
 
 ## Benchmarks
 

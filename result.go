@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -196,6 +197,15 @@ func (r *Result) Bytes() ([]byte, error) {
 	var buf bytes.Buffer
 	_, err := r.WriteTo(&buf)
 	return buf.Bytes(), err
+}
+
+// String returns the result as a string.
+//
+// Refer to r.CloseOnRead for whether the result is closed after the first read.
+func (r *Result) String() (string, error) {
+	var sb strings.Builder
+	_, err := r.WriteTo(&sb)
+	return sb.String(), err
 }
 
 // Ok returns whether the result is "OK". Note that it may fail even if the

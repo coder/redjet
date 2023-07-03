@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"strconv"
 	"sync"
@@ -27,8 +28,8 @@ type Client struct {
 	pool   *connPool
 }
 
-// NewClient returns a new client that connects to addr with default settings.
-func NewClient(addr string) *Client {
+// New returns a new client that connects to addr with default settings.
+func New(addr string) *Client {
 	c := &Client{
 		ConnectionPoolSize: 8,
 		IdleTimeout:        5 * time.Minute,
@@ -104,9 +105,44 @@ func writeBulkBytes(w *bufio.Writer, b []byte) {
 	w.WriteString(crlf)
 }
 
+// LenReader is an io.Reader that also knows its length.
+// A new one may be created with NewLenReader.
+type LenReader interface {
+	Len() int
+	io.Reader
+}
+
+type lenReader struct {
+	io.Reader
+	size int
+}
+
+func (r *lenReader) Len() int {
+	return r.size
+}
+
+func NewLenReader(r io.Reader, size int) LenReader {
+	return &lenReader{
+		Reader: r,
+		size:   size,
+	}
+}
+
+func writeBulkReader(w *bufio.Writer, rd LenReader) {
+	w.WriteString("$")
+	w.WriteString(strconv.Itoa(rd.Len()))
+	w.WriteString(crlf)
+	w.ReadFrom(rd)
+	io.Copy(w, rd)
+	w.WriteString(crlf)
+}
+
 // Pipeline sends a command to the server and returns the promise of a result.
 // r may be nil, as in the case of the first command in a pipeline. Each successive
 // call to Pipeline should re-use the last returned Result.
+//
+// args may be strings, []byte, or LenReader. Other types are converted to strings
+// with fmt.Sprintf("%v", arg).
 //
 // It is safe to keep a pipeline running for a long time, with many send and
 // receive cycles.
@@ -140,11 +176,10 @@ func (c *Client) Pipeline(ctx context.Context, r *Result, cmd string, args ...an
 			writeBulkString(conn.wr, arg)
 		case []byte:
 			writeBulkBytes(conn.wr, arg)
+		case LenReader:
+			writeBulkReader(conn.wr, arg)
 		default:
-			conn.Close()
-			return &Result{
-				err: fmt.Errorf("unsupported argument type %T", arg),
-			}
+			writeBulkString(conn.wr, fmt.Sprintf("%v", arg))
 		}
 	}
 
@@ -175,7 +210,9 @@ func (c *Client) Pipeline(ctx context.Context, r *Result, cmd string, args ...an
 // Command sends a command to the server and returns the result. The error
 // is encoded into the result for ergonomics.
 //
-// The result must be closed or drained to avoid leaking resources.
+// See Pipeline for more information on argument types.
+//
+// The caller should call Close on the result when finished with it.
 func (c *Client) Command(ctx context.Context, cmd string, args ...any) *Result {
 	r := c.Pipeline(ctx, nil, cmd, args...)
 	r.CloseOnRead = true
