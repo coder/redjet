@@ -45,6 +45,7 @@ func (r *Result) Error() string {
 }
 
 func readSimpleString(rd *bufio.Reader) ([]byte, error) {
+	// Simple strings are typically small enough that we can don't care about the allocation.
 	b, err := rd.ReadBytes('\n')
 	if err != nil {
 		return nil, err
@@ -52,35 +53,37 @@ func readSimpleString(rd *bufio.Reader) ([]byte, error) {
 	return b[:len(b)-2], nil
 }
 
-func readBulkString(c net.Conn, rd *bufio.Reader, w io.Writer) error {
+func readBulkString(c net.Conn, rd *bufio.Reader, w io.Writer) (int, error) {
 	c.SetReadDeadline(time.Now().Add(time.Second * 5))
 	b, err := rd.ReadBytes('\n')
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	n, err := strconv.Atoi(string(b[:len(b)-2]))
 	if err != nil {
-		return err
+		return 0, err
 	}
 
+	// Give about a second per byte.
 	c.SetReadDeadline(time.Now().Add(
 		time.Second*5 + (time.Duration(n) * time.Second),
 	))
 
 	if n == -1 {
-		return nil
+		return 0, nil
 	}
+	var nn int64
 	// CopyN should not allocate because rd is a bufio.Reader and implements
 	// WriteTo.
-	if _, err := io.CopyN(w, rd, int64(n)); err != nil {
-		return err
+	if nn, err = io.CopyN(w, rd, int64(n)); err != nil {
+		return int(nn), err
 	}
 	// Discard CRLF
 	if _, err := rd.Discard(2); err != nil {
-		return err
+		return int(nn), err
 	}
-	return nil
+	return int(nn), nil
 }
 
 func (r *Result) checkClosed() error {
@@ -90,13 +93,14 @@ func (r *Result) checkClosed() error {
 	return nil
 }
 
-// Bytes returns the result as a byte slice.
-// If buf is nil, a new buffer is allocated.
+var _ io.WriterTo = (*Result)(nil)
+
+// WriteTo returns the result as a byte slice.
 //
 // It closes the result.
-func (r *Result) Bytes() ([]byte, error) {
+func (r *Result) WriteTo(w io.Writer) (int64, error) {
 	if err := r.checkClosed(); err != nil {
-		return nil, err
+		return 0, err
 	}
 
 	// Close must follow Unlock to avoid deadlock.
@@ -106,7 +110,7 @@ func (r *Result) Bytes() ([]byte, error) {
 	defer r.mu.Unlock()
 
 	if r.err != nil {
-		return nil, r.err
+		return 0, r.err
 	}
 
 	// The type byte should come fast since its so small. A timeout here implies
@@ -117,7 +121,7 @@ func (r *Result) Bytes() ([]byte, error) {
 	typ, r.err = r.rd.ReadByte()
 	if r.err != nil {
 		r.err = fmt.Errorf("read type: %w", r.err)
-		return nil, r.err
+		return 0, r.err
 	}
 
 	switch typ {
@@ -125,29 +129,44 @@ func (r *Result) Bytes() ([]byte, error) {
 		// Simple string
 		var s []byte
 		s, r.err = readSimpleString(r.rd)
-		return s, r.err
+		if r.err != nil {
+			return 0, r.err
+		}
+		var n int
+		n, r.err = w.Write(s)
+		return int64(n), r.err
 	case '-':
 		// Error
 		var s []byte
 		s, r.err = readSimpleString(r.rd)
 		if r.err != nil {
-			return nil, r.err
+			return 0, r.err
 		}
-		return nil, &Error{
+
+		return 0, &Error{
 			raw: string(s),
 		}
 	case '$':
 		// Bulk string
-		var buf bytes.Buffer
-		r.err = readBulkString(r.conn, r.rd, &buf)
-		return buf.Bytes(), r.err
+		var n int
+		n, r.err = readBulkString(r.conn, r.rd, w)
+		return int64(n), r.err
 	case ':':
-		return nil, fmt.Errorf("unexpected integer response")
+		return 0, fmt.Errorf("unexpected integer response")
 	case '*':
-		return nil, fmt.Errorf("unexpected array response")
+		return 0, fmt.Errorf("unexpected array response")
 	default:
-		return nil, fmt.Errorf("unknown type %q", typ)
+		return 0, fmt.Errorf("unknown type %q", typ)
 	}
+}
+
+// Bytes returns the result as a byte slice.
+//
+// It closes the result.
+func (r *Result) Bytes() ([]byte, error) {
+	var buf bytes.Buffer
+	_, err := r.WriteTo(&buf)
+	return buf.Bytes(), err
 }
 
 // Ok returns whether the result is "OK". Note that it may fail even if the
@@ -169,7 +188,9 @@ func (r *Result) Close() error {
 	if !atomic.CompareAndSwapInt64(&r.closed, 0, 1) {
 		return nil
 	}
-	close(r.closeCh)
+	if r.closeCh != nil {
+		close(r.closeCh)
+	}
 	if r.err == nil {
 		r.client.putConn(r.conn)
 	}

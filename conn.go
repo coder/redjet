@@ -9,16 +9,51 @@ import (
 type conn struct {
 	net.Conn
 
-	idleCloseTimer *time.Timer
+	lastUsed time.Time
 }
 
 type connPool struct {
-	free chan *conn
+	free        chan *conn
+	canceled    chan struct{}
+	cleanTicker *time.Ticker
+	idleTimeout time.Duration
 }
 
-func newConnPool(size int) *connPool {
-	return &connPool{
+func newConnPool(size int, idleTimeout time.Duration) *connPool {
+	p := &connPool{
 		free: make(chan *conn, size),
+		// 3 is chosen arbitrarily.
+		cleanTicker: time.NewTicker(idleTimeout * 3),
+		canceled:    make(chan struct{}),
+		idleTimeout: idleTimeout,
+	}
+	go p.clean()
+	return p
+}
+
+func (p *connPool) clean() {
+	// We use a centralized routine for cleaning instead of AfterFunc on each
+	// connection because the latter creates more garbage, even though it scales
+	// logarithmically as opposed to linearly.
+	for {
+		select {
+		case <-p.canceled:
+			return
+		case <-p.cleanTicker.C:
+			for {
+				select {
+				// Remove all idle connections.
+				case c := <-p.free:
+					if time.Since(c.lastUsed) > p.idleTimeout {
+						c.Close()
+						continue
+					}
+					p.free <- c
+				default:
+					return
+				}
+			}
+		}
 	}
 }
 
@@ -27,11 +62,7 @@ func newConnPool(size int) *connPool {
 func (p *connPool) tryGet(ctx context.Context) (*conn, bool) {
 	select {
 	case c := <-p.free:
-		if !c.idleCloseTimer.Stop() {
-			// Timer already fired, so the connection was closed.
-			// Try again.
-			return p.tryGet(ctx)
-		}
+		c.lastUsed = time.Now()
 		return c, true
 	default:
 		return nil, false
@@ -44,12 +75,6 @@ func (p *connPool) put(nc net.Conn, idleTimeout time.Duration) {
 	c := &conn{
 		Conn: nc,
 	}
-	if idleTimeout <= 0 {
-		panic("idleTimeout must be > 0")
-	}
-	c.idleCloseTimer = time.AfterFunc(idleTimeout, func() {
-		c.Close()
-	})
 
 	select {
 	case p.free <- c:

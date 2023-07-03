@@ -44,7 +44,7 @@ func (c *Client) initPool() {
 	defer c.poolMu.Unlock()
 
 	if c.pool == nil {
-		c.pool = newConnPool(c.ConnectionPoolSize)
+		c.pool = newConnPool(c.ConnectionPoolSize, c.IdleTimeout)
 	}
 }
 
@@ -158,4 +158,20 @@ func (c *Client) Command(ctx context.Context, cmd string, args ...any) (r *Resul
 		}
 	}()
 	return success
+}
+
+func (c *Client) Close() error {
+	c.poolMu.Lock()
+	defer c.poolMu.Unlock()
+
+	if c.pool != nil {
+		close(c.pool.free)
+		for conn := range c.pool.free {
+			conn.Close()
+		}
+		close(c.pool.canceled)
+		c.pool.cleanTicker.Stop()
+		c.pool = nil
+	}
+	return nil
 }
