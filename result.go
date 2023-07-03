@@ -61,7 +61,7 @@ func (r *Result) Error() string {
 	return r.err.Error()
 }
 
-func readSimpleString(rd *bufio.Reader) ([]byte, error) {
+func readUntilNewline(rd *bufio.Reader) ([]byte, error) {
 	// Simple strings are typically small enough that we can don't care about the allocation.
 	b, err := rd.ReadBytes('\n')
 	if err != nil {
@@ -80,6 +80,11 @@ func readBulkString(c net.Conn, rd *bufio.Reader, w io.Writer) (int, error) {
 	n, err := strconv.Atoi(string(b[:len(b)-2]))
 	if err != nil {
 		return 0, err
+	}
+
+	// n == -1 signals a nil value.
+	if n == -1 {
+		return 0, nil
 	}
 
 	// Give about a second per byte.
@@ -160,11 +165,12 @@ func (r *Result) writeTo(w io.Writer) (int64, error) {
 		return 0, r.err
 	}
 
+	var s []byte
+
 	switch typ {
-	case '+':
-		// Simple string
-		var s []byte
-		s, r.err = readSimpleString(r.conn.rd)
+	case '+', ':':
+		// Simple string or integer
+		s, r.err = readUntilNewline(r.conn.rd)
 		if r.err != nil {
 			return 0, r.err
 		}
@@ -174,8 +180,7 @@ func (r *Result) writeTo(w io.Writer) (int64, error) {
 		return int64(n), r.err
 	case '-':
 		// Error
-		var s []byte
-		s, r.err = readSimpleString(r.conn.rd)
+		s, r.err = readUntilNewline(r.conn.rd)
 		if r.err != nil {
 			return 0, r.err
 		}
@@ -189,8 +194,6 @@ func (r *Result) writeTo(w io.Writer) (int64, error) {
 		n, r.err = readBulkString(r.conn, r.conn.rd, w)
 		r.pipeline.at++
 		return int64(n), r.err
-	case ':':
-		return 0, fmt.Errorf("unexpected integer response")
 	case '*':
 		return 0, fmt.Errorf("unexpected array response")
 	default:
@@ -214,6 +217,17 @@ func (r *Result) String() (string, error) {
 	var sb strings.Builder
 	_, err := r.WriteTo(&sb)
 	return sb.String(), err
+}
+
+// Int returns the result as an integer.
+//
+// Refer to r.CloseOnRead for whether the result is closed after the first read.
+func (r *Result) Int() (int, error) {
+	s, err := r.String()
+	if err != nil {
+		return 0, err
+	}
+	return strconv.Atoi(s)
 }
 
 // Ok returns whether the result is "OK". Note that it may fail even if the

@@ -207,6 +207,24 @@ func TestClient_BadCmd(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestClient_Integer(t *testing.T) {
+	t.Parallel()
+
+	_, client := startRedisServer(t)
+
+	ctx := context.Background()
+	err := client.Command(ctx, "SET", "foo", "123").Ok()
+	require.NoError(t, err)
+
+	got, err := client.Command(ctx, "GET", "foo").Int()
+	require.NoError(t, err)
+	require.EqualValues(t, 123, got)
+
+	gotLen, err := client.Command(ctx, "STRLEN", "foo").Int()
+	require.NoError(t, err)
+	require.Equal(t, 3, gotLen)
+}
+
 func Benchmark_Get(b *testing.B) {
 	_, client := startRedisServer(b)
 
