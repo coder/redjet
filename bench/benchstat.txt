@@ -1,0 +1,18 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/ammario/redjet/bench
+         │ /tmp/GoRedis.bench.out │     /tmp/Redigo.bench.out     │       /tmp/Redjet.bench.out        │
+         │         sec/op         │   sec/op     vs base          │   sec/op     vs base               │
+Redis-10              1.379m ± 4%   1.374m ± 1%  ~ (p=0.353 n=10)   1.287m ± 4%  -6.72% (p=0.000 n=10)
+
+         │ /tmp/GoRedis.bench.out │     /tmp/Redigo.bench.out      │        /tmp/Redjet.bench.out        │
+         │          B/s           │     B/s       vs base          │     B/s       vs base               │
+Redis-10             724.9Mi ± 4%   727.7Mi ± 1%  ~ (p=0.353 n=10)   777.2Mi ± 4%  +7.21% (p=0.000 n=10)
+
+         │ /tmp/GoRedis.bench.out │         /tmp/Redigo.bench.out          │        /tmp/Redjet.bench.out        │
+         │          B/op          │      B/op        vs base               │    B/op      vs base                │
+Redis-10          1057013.50 ± 0%   1047441.50 ± 0%  -0.91% (p=0.000 n=10)   66.00 ± 12%  -99.99% (p=0.000 n=10)
+
+         │ /tmp/GoRedis.bench.out │        /tmp/Redigo.bench.out        │       /tmp/Redjet.bench.out        │
+         │       allocs/op        │  allocs/op   vs base                │ allocs/op   vs base                │
+Redis-10               6.000 ± 0%   2.000 ± 50%  -66.67% (p=0.000 n=10)   4.000 ± 0%  -33.33% (p=0.000 n=10)

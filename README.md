@@ -2,7 +2,7 @@
 
 
 redjet is a high-performance Go library for Redis. Its hallmark feature is
-a zero-allocation, streaming API.
+a low-allocation, streaming API.
 
 Unlike redigo and go-redis, redjet does not provide a function for every
 Redis command. Instead, it offers a generic interface that supports [all commands
@@ -12,5 +12,32 @@ type-safety, it provides forward compatibility with new Redis features.
 
 ## Benchmarks
 
-TBD in `./bench`.
+On a pure throughput basis, redjet will perform similarly to redigo and go-redis.
+But, since redjet doesn't allocate memory for the entire response object, it
+consumes far less resources when handling large responses.
 
+Here are some benchmarks (reproducible via `make gen-bench`) to illustrate:
+
+Note that they are a bit contrived in that they Get a 1MB object. The performance
+of all libaries converge as the size of the response decreases.
+
+```
+goos: darwin
+goarch: arm64
+pkg: github.com/ammario/redjet/bench
+ │   Redjet    │               Redigo               │              GoRedis               │
+ │   sec/op    │   sec/op     vs base               │   sec/op     vs base               │
+   1.287m ± 4%   1.374m ± 1%  +6.81% (p=0.000 n=10)   1.379m ± 4%  +7.21% (p=0.000 n=10)
+
+ │    Redjet    │               Redigo                │               GoRedis               │
+ │     B/s      │     B/s       vs base               │     B/s       vs base               │
+   777.2Mi ± 4%   727.7Mi ± 1%  -6.37% (p=0.000 n=10)   724.9Mi ± 4%  -6.72% (p=0.000 n=10)
+
+ │   Redjet    │                    Redigo                    │                   GoRedis                    │
+ │    B/op     │      B/op        vs base                     │      B/op        vs base                     │
+   66.00 ± 12%   1047441.50 ± 0%  +1586932.58% (p=0.000 n=10)   1057013.50 ± 0%  +1601435.61% (p=0.000 n=10)
+
+ │   Redjet   │               Redigo                │              GoRedis               │
+ │ allocs/op  │  allocs/op   vs base                │ allocs/op   vs base                │
+   4.000 ± 0%   2.000 ± 50%  -50.00% (p=0.000 n=10)   6.000 ± 0%  +50.00% (p=0.000 n=10)
+```
