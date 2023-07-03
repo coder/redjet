@@ -110,8 +110,13 @@ func TestClient_Race(t *testing.T) {
 			defer wg.Done()
 
 			key := strconv.Itoa(i)
-
-			gotOk, err := client.Command(ctx, "SET", key, "bar").Ok()
+			res := client.Command(ctx, "SET", key, "bar")
+			if i%4 == 0 {
+				err := res.Close()
+				assert.NoError(t, err)
+				return
+			}
+			gotOk, err := res.Ok()
 			assert.NoError(t, err)
 			assert.True(t, gotOk)
 

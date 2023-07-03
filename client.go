@@ -156,6 +156,10 @@ func (c *Client) Command(ctx context.Context, cmd string, args ...any) (r *Resul
 		rd:      rd,
 		client:  c,
 		closeCh: make(chan struct{}),
+		pipeline: pipeline{
+			at:  0,
+			end: 1,
+		},
 	}
 	go func() {
 		select {

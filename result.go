@@ -3,6 +3,7 @@ package redjet
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -21,6 +22,7 @@ func (e *Error) Error() string {
 }
 
 // Result is the result of a command.
+//
 // Its methods are not safe for concurrent use.
 type Result struct {
 	mu sync.Mutex
@@ -33,6 +35,8 @@ type Result struct {
 	conn   net.Conn
 	rd     *bufio.Reader
 	client *Client
+
+	pipeline pipeline
 }
 
 func (r *Result) Error() string {
@@ -86,9 +90,11 @@ func readBulkString(c net.Conn, rd *bufio.Reader, w io.Writer) (int, error) {
 	return int(nn), nil
 }
 
+var errClosed = fmt.Errorf("result closed")
+
 func (r *Result) checkClosed() error {
 	if atomic.LoadInt64(&r.closed) != 0 {
-		return fmt.Errorf("result already closed")
+		return errClosed
 	}
 	return nil
 }
@@ -97,20 +103,31 @@ var _ io.WriterTo = (*Result)(nil)
 
 // WriteTo returns the result as a byte slice.
 //
-// It closes the result.
+// It closes the result if the pipeline is complete.
 func (r *Result) WriteTo(w io.Writer) (int64, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	defer func() {
+		if r.pipeline.at == r.pipeline.end {
+			r.close()
+		}
+	}()
+
+	return r.writeTo(w)
+}
+
+func (r *Result) writeTo(w io.Writer) (int64, error) {
 	if err := r.checkClosed(); err != nil {
 		return 0, err
 	}
 
-	// Close must follow Unlock to avoid deadlock.
-	defer r.Close()
-
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	if r.err != nil {
 		return 0, r.err
+	}
+
+	if r.pipeline.at == r.pipeline.end {
+		return 0, fmt.Errorf("no more results")
 	}
 
 	// The type byte should come fast since its so small. A timeout here implies
@@ -134,6 +151,7 @@ func (r *Result) WriteTo(w io.Writer) (int64, error) {
 		}
 		var n int
 		n, r.err = w.Write(s)
+		r.pipeline.at++
 		return int64(n), r.err
 	case '-':
 		// Error
@@ -142,7 +160,7 @@ func (r *Result) WriteTo(w io.Writer) (int64, error) {
 		if r.err != nil {
 			return 0, r.err
 		}
-
+		r.pipeline.at++
 		return 0, &Error{
 			raw: string(s),
 		}
@@ -150,6 +168,7 @@ func (r *Result) WriteTo(w io.Writer) (int64, error) {
 		// Bulk string
 		var n int
 		n, r.err = readBulkString(r.conn, r.rd, w)
+		r.pipeline.at++
 		return int64(n), r.err
 	case ':':
 		return 0, fmt.Errorf("unexpected integer response")
@@ -162,7 +181,7 @@ func (r *Result) WriteTo(w io.Writer) (int64, error) {
 
 // Bytes returns the result as a byte slice.
 //
-// It closes the result.
+// It closes the result if the pipeline is complete.
 func (r *Result) Bytes() ([]byte, error) {
 	var buf bytes.Buffer
 	_, err := r.WriteTo(&buf)
@@ -170,7 +189,9 @@ func (r *Result) Bytes() ([]byte, error) {
 }
 
 // Ok returns whether the result is "OK". Note that it may fail even if the
+//
 // command succeeded. For example, a successful GET will return a value.
+// It closes the result if the pipeline is complete.
 func (r *Result) Ok() (bool, error) {
 	got, err := r.Bytes()
 	if err != nil {
@@ -185,9 +206,22 @@ func (r *Result) Close() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	return r.close()
+}
+
+func (r *Result) close() error {
+	for i := r.pipeline.at; i < r.pipeline.end; i++ {
+		// Read the result into discard so that the connection can be reused.
+		_, err := r.writeTo(io.Discard)
+		if errors.Is(err, errClosed) {
+			return nil
+		}
+	}
+
 	if !atomic.CompareAndSwapInt64(&r.closed, 0, 1) {
 		return nil
 	}
+
 	if r.closeCh != nil {
 		close(r.closeCh)
 	}
