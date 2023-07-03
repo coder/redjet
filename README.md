@@ -1,3 +1,15 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [redjet](#redjet)
+  - [Basic Usage](#basic-usage)
+  - [Streaming](#streaming)
+  - [Pipelining](#pipelining)
+  - [Benchmarks](#benchmarks)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # redjet
 
 
@@ -46,6 +58,26 @@ instead of `Bytes`, which will stream the response directly to an `io.Writer` su
 
 Similarly, you can pass in a value that implements `redjet.LenReader` to
 `Command` to stream larger readers into Redis.
+
+## Pipelining
+
+`redjet` supports pipelining via the `Pipeline` method. This method accepts a Result, potentially that of a previous command.
+
+```go
+// Set foo0, foo1, ..., foo99 to "bar", and confirm that each succeeded.
+//
+// This entire example only takes one round-trip to Redis!
+var r *Result
+for i := 0; i < 100; i++ {
+    r = client.Pipeline(r, "SET", fmt.Sprintf("foo%d", i), "bar")
+}
+
+for r.Next() {
+    if err := r.Ok(); err != nil {
+        log.Fatal(err)
+    }
+}
+```
 
 ## Benchmarks
 

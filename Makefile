@@ -6,6 +6,10 @@ SHELL = /bin/bash
 test:
 	go test -race -timeout=60s .
 
+.PHONY: doctoc
+doctoc:
+	doctoc --github README.md
+
 gen-bench:
 	pushd bench
 	rm -f /tmp/*.bench.out
