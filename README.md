@@ -18,9 +18,6 @@ consumes far less resources when handling large responses.
 
 Here are some benchmarks (reproducible via `make gen-bench`) to illustrate:
 
-Note that they are a bit contrived in that they Get a 1MB object. The performance
-of all libaries converge as the size of the response decreases.
-
 ```
 goos: darwin
 goarch: arm64
@@ -41,3 +38,7 @@ pkg: github.com/ammario/redjet/bench
  │ allocs/op  │  allocs/op   vs base                │ allocs/op   vs base                │
    4.000 ± 0%   2.000 ± 50%  -50.00% (p=0.000 n=10)   6.000 ± 0%  +50.00% (p=0.000 n=10)
 ```
+
+
+Note that they are a bit contrived in that they Get a 1MB object. The performance
+of all libraries converge as response size decreases.
