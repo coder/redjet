@@ -11,6 +11,8 @@ type-safety, it provides forward compatibility with new Redis features.
 
 ## Basic Usage
 
+For the most part, you can interact with Redis using a familiar interface:
+
 ```go
 package main
 
@@ -34,6 +36,14 @@ func main() {
     // got == []byte("bar")
 }
 ```
+
+## Streaming
+
+When it comes time for performance, you may call `WriteTo` on the result
+instead of `Bytes`, which will stream the response directly to an `io.Writer` such as a file or HTTP response.
+
+Similarly, you can pass in a value that implements `redjet.LenReader` to
+`Command` to stream larger readers into Redis.
 
 ## Benchmarks
 
