@@ -196,6 +196,17 @@ func TestClient_LenReader(t *testing.T) {
 	require.Equal(t, []byte(v), got)
 }
 
+func TestClient_BadCmd(t *testing.T) {
+	t.Parallel()
+
+	_, client := startRedisServer(t)
+
+	ctx := context.Background()
+	err := client.Command(ctx, "whatwhat").Ok()
+	require.True(t, IsUnknownCommand(err))
+	require.Error(t, err)
+}
+
 func Benchmark_Get(b *testing.B) {
 	_, client := startRedisServer(b)
 

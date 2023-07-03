@@ -14,12 +14,20 @@ import (
 	"time"
 )
 
+// Error represents an error returned by the Redis server, as opposed to a
+// a protocol or network error.
 type Error struct {
 	raw string
 }
 
 func (e *Error) Error() string {
-	return ""
+	return e.raw
+}
+
+// IsUnknownCommand returns whether err is an "unknown command" error.
+func IsUnknownCommand(err error) bool {
+	var e *Error
+	return errors.As(err, &e) && strings.HasPrefix(e.raw, "ERR unknown command")
 }
 
 // Result is the result of a command.
