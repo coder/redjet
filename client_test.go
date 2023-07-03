@@ -5,15 +5,16 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"io/ioutil"
 	"net"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 )
@@ -66,7 +67,7 @@ func startRedisServer(t testing.TB) (string, *Client) {
 			Dial: func(_ context.Context) (net.Conn, error) {
 				return net.Dial("unix", socket)
 			},
-			IdleTimeout: 10 * time.Second,
+			IdleTimeout: 100 * time.Millisecond,
 		}
 		t.Cleanup(func() {
 			c.Close()
@@ -78,6 +79,8 @@ func startRedisServer(t testing.TB) (string, *Client) {
 }
 
 func TestClient_SetGet(t *testing.T) {
+	t.Parallel()
+
 	_, client := startRedisServer(t)
 
 	ctx := context.Background()
@@ -89,6 +92,54 @@ func TestClient_SetGet(t *testing.T) {
 	got, err := client.Command(ctx, "GET", "foo").Bytes()
 	require.NoError(t, err)
 	require.Equal(t, []byte("bar"), got)
+}
+
+func TestClient_Race(t *testing.T) {
+	t.Parallel()
+
+	_, client := startRedisServer(t)
+
+	ctx := context.Background()
+
+	// Ensure connections are getted reused correctly.
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		i := i
+		go func() {
+			defer wg.Done()
+
+			key := strconv.Itoa(i)
+
+			gotOk, err := client.Command(ctx, "SET", key, "bar").Ok()
+			assert.NoError(t, err)
+			assert.True(t, gotOk)
+
+			got, err := client.Command(ctx, "GET", key).Bytes()
+			assert.NoError(t, err)
+			assert.Equal(t, []byte("bar"), got)
+		}()
+	}
+
+	wg.Wait()
+}
+
+func TestClient_IdleDrain(t *testing.T) {
+	t.Parallel()
+
+	_, client := startRedisServer(t)
+
+	require.Equal(t, 0, client.freeConns())
+
+	err := client.Command(context.Background(), "SET", "foo", "bar").Close()
+	require.NoError(t, err)
+
+	require.Equal(t, 1, client.freeConns())
+
+	// After the idle timeout, the connection should be drained.
+	require.Eventually(t, func() bool {
+		return client.freeConns() == 0
+	}, time.Second, 10*time.Millisecond)
 }
 
 func Benchmark_Get(b *testing.B) {
@@ -116,7 +167,7 @@ func Benchmark_Get(b *testing.B) {
 			b.ReportAllocs()
 			b.SetBytes(int64(len(payload)))
 			for i := 0; i < b.N; i++ {
-				n, err := client.Command(ctx, "GET", "foo").WriteTo(ioutil.Discard)
+				n, err := client.Command(ctx, "GET", "foo").WriteTo(io.Discard)
 				require.NoError(b, err, "i=%d", i)
 				if int(n) != len(payload) {
 					b.Fatalf("unexpected written: %d", n)

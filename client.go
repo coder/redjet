@@ -39,6 +39,13 @@ func NewClient(addr string) *Client {
 	return c
 }
 
+func (c *Client) freeConns() int {
+	if c.pool == nil {
+		return 0
+	}
+	return len(c.pool.free)
+}
+
 func (c *Client) initPool() {
 	c.poolMu.Lock()
 	defer c.poolMu.Unlock()
