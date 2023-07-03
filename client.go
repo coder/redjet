@@ -148,14 +148,6 @@ func (c *Client) Pipeline(ctx context.Context, r *Result, cmd string, args ...an
 		}
 	}
 
-	err = conn.wr.Flush()
-	if err != nil {
-		conn.Close()
-		return &Result{
-			err: fmt.Errorf("write cmd: %w", err),
-		}
-	}
-
 	if r == nil {
 		r = &Result{
 			conn:    conn,

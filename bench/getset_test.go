@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/ammario/redjet"
+	redigo "github.com/gomodule/redigo/redis"
+	goredis "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 )
 
@@ -95,5 +97,63 @@ func BenchmarkRedjet(b *testing.B) {
 		read, err := r.WriteTo(io.Discard)
 		require.NoError(b, err)
 		require.Equal(b, int64(len(big)), read)
+	}
+}
+
+func BenchmarkRedigo(b *testing.B) {
+	socket := startRedisServer(b)
+
+	conn, err := redigo.Dial("unix", socket)
+	require.NoError(b, err)
+
+	err = conn.Send("SET", "foo", big)
+	require.NoError(b, err)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	b.SetBytes(int64(len(big)))
+
+	for i := 0; i < b.N; i++ {
+		conn.Send("GET", "foo")
+	}
+	err = conn.Flush()
+	require.NoError(b, err)
+	for i := 0; i < b.N; i++ {
+		_, err = conn.Receive()
+		require.NoError(b, err)
+	}
+}
+
+func BenchmarkGoRedis(b *testing.B) {
+	socket := startRedisServer(b)
+	rdb := goredis.NewClient(&goredis.Options{
+		Network: "unix",
+		Addr:    socket,
+	})
+
+	ctx := context.Background()
+	err := rdb.Set(ctx, "foo", big, 0).Err()
+	require.NoError(b, err)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	b.SetBytes(int64(len(big)))
+
+	pipe := rdb.Pipeline()
+
+	var results []*goredis.StringCmd
+	for i := 0; i < b.N; i++ {
+		results = append(results, pipe.Get(ctx, "foo"))
+	}
+
+	cmds, err := pipe.Exec(ctx)
+	require.NoError(b, err)
+
+	require.Equal(b, b.N, len(cmds))
+
+	for _, r := range results {
+		s := r.Val()
+
+		require.Equal(b, len(big), len(s))
 	}
 }

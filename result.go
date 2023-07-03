@@ -134,6 +134,12 @@ func (r *Result) writeTo(w io.Writer) (int64, error) {
 		return 0, fmt.Errorf("no more results")
 	}
 
+	r.err = r.conn.wr.Flush()
+	if r.err != nil {
+		r.err = fmt.Errorf("flush: %w", r.err)
+		return 0, r.err
+	}
+
 	// The type byte should come fast since its so small. A timeout here implies
 	// a protocol error.
 	r.conn.SetDeadline(time.Now().Add(time.Second * 5))
