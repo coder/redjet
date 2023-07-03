@@ -76,4 +76,6 @@ pkg: github.com/ammario/redjet/bench
 
 
 Note that they are a bit contrived in that they Get a 1MB object. The performance
-of all libraries converge as response size decreases.
+of all libraries converge as response size decreases. If you don't
+need the performance this library offers, you should probably use a more
+well-tested library like redigo or go-redis.
