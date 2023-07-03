@@ -86,9 +86,8 @@ func TestClient_SetGet(t *testing.T) {
 
 	ctx := context.Background()
 
-	gotOk, err := client.Command(ctx, "SET", "foo", "bar").Ok()
+	err := client.Command(ctx, "SET", "foo", "bar").Ok()
 	require.NoError(t, err)
-	require.True(t, gotOk)
 
 	got, err := client.Command(ctx, "GET", "foo").Bytes()
 	require.NoError(t, err)
@@ -117,9 +116,9 @@ func TestClient_Race(t *testing.T) {
 				assert.NoError(t, err)
 				return
 			}
-			gotOk, err := res.Ok()
+
+			err := res.Ok()
 			assert.NoError(t, err)
-			assert.True(t, gotOk)
 
 			got, err := client.Command(ctx, "GET", key).Bytes()
 			assert.NoError(t, err)
@@ -163,9 +162,8 @@ func TestClient_ShortRead(t *testing.T) {
 			require.NoError(t, err)
 			continue
 		}
-		gotOk, err := r.Ok()
+		err := r.Ok()
 		require.NoError(t, err)
-		require.True(t, gotOk)
 
 		got, err := r.Bytes()
 		require.NoError(t, err)
@@ -193,9 +191,8 @@ func Benchmark_Get(b *testing.B) {
 		b.Run("Size="+strconv.Itoa(payloadSize), func(b *testing.B) {
 			payload := payloads[i]
 
-			gotOk, err := client.Command(ctx, "SET", "foo", payload).Ok()
+			err := client.Command(ctx, "SET", "foo", payload).Ok()
 			require.NoError(b, err)
-			require.True(b, gotOk)
 
 			b.ResetTimer()
 			b.ReportAllocs()

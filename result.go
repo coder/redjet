@@ -195,12 +195,15 @@ func (r *Result) Bytes() ([]byte, error) {
 // Ok returns whether the result is "OK". Note that it may fail even if the
 //
 // command succeeded. For example, a successful GET will return a value.
-func (r *Result) Ok() (bool, error) {
+func (r *Result) Ok() error {
 	got, err := r.Bytes()
 	if err != nil {
-		return false, err
+		return err
 	}
-	return string(got) == "OK", nil
+	if !bytes.Equal(got, []byte("OK")) {
+		return fmt.Errorf("expected OK, got %q", got)
+	}
+	return nil
 }
 
 // Next returns true if there are more results to read.
