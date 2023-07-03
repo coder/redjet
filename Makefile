@@ -8,7 +8,7 @@ test:
 
 .PHONY: doctoc
 doctoc:
-	doctoc --github README.md
+	doctoc --title "**Table of Contents**" --github README.md
 
 gen-bench:
 	pushd bench

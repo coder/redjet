@@ -1,29 +1,28 @@
-<!-- START doctoc generated TOC please keep comment here to allow auto update -->
-<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
-**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
-
-- [redjet](#redjet)
-  - [Basic Usage](#basic-usage)
-  - [Streaming](#streaming)
-  - [Pipelining](#pipelining)
-  - [Benchmarks](#benchmarks)
-
-<!-- END doctoc generated TOC please keep comment here to allow auto update -->
-
-# redjet
-
-
 redjet is a high-performance Go library for Redis. Its hallmark feature is
 a low-allocation, streaming API.
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**
+
+- [Introduction](#introduction)
+- [Basic Usage](#basic-usage)
+- [Streaming](#streaming)
+- [Pipelining](#pipelining)
+- [Benchmarks](#benchmarks)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+---
+
 ![header](header.jpg)
+
+# Introduction
 
 Unlike redigo and go-redis, redjet does not provide a function for every
 Redis command. Instead, it offers a generic interface that supports [all commands
 and options](https://redis.io/commands/). While this approach has less
 type-safety, it provides forward compatibility with new Redis features.
-
-## Basic Usage
+# Basic Usage
 
 For the most part, you can interact with Redis using a familiar interface:
 
@@ -51,7 +50,7 @@ func main() {
 }
 ```
 
-## Streaming
+# Streaming
 
 When it comes time for performance, you may call `WriteTo` on the result
 instead of `Bytes`, which will stream the response directly to an `io.Writer` such as a file or HTTP response.
@@ -59,7 +58,7 @@ instead of `Bytes`, which will stream the response directly to an `io.Writer` su
 Similarly, you can pass in a value that implements `redjet.LenReader` to
 `Command` to stream larger readers into Redis.
 
-## Pipelining
+# Pipelining
 
 `redjet` supports pipelining via the `Pipeline` method. This method accepts a Result, potentially that of a previous command.
 
@@ -79,7 +78,7 @@ for r.Next() {
 }
 ```
 
-## Benchmarks
+# Benchmarks
 
 On a pure throughput basis, redjet will perform similarly to redigo and go-redis.
 But, since redjet doesn't allocate memory for the entire response object, it
