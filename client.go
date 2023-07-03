@@ -76,6 +76,9 @@ func (c *Client) getConn(ctx context.Context) (*conn, error) {
 }
 
 func (c *Client) putConn(conn *conn) {
+	if conn == nil {
+		panic("cannot put nil conn")
+	}
 	c.initPool()
 	// Clear any deadline.
 	conn.SetDeadline(time.Time{})

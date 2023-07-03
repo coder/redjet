@@ -102,16 +102,10 @@ var _ io.WriterTo = (*Result)(nil)
 
 // WriteTo returns the result as a byte slice.
 //
-// It closes the result if the pipeline is complete.
+// It leaves the result open for pipelineing.
 func (r *Result) WriteTo(w io.Writer) (int64, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-
-	defer func() {
-		if r.pipeline.at == r.pipeline.end {
-			r.close()
-		}
-	}()
 
 	return r.writeTo(w)
 }
@@ -180,7 +174,7 @@ func (r *Result) writeTo(w io.Writer) (int64, error) {
 
 // Bytes returns the result as a byte slice.
 //
-// It closes the result if the pipeline is complete.
+// It closes the result, regardless of whether the result is a pipeline.
 func (r *Result) Bytes() ([]byte, error) {
 	var buf bytes.Buffer
 	_, err := r.WriteTo(&buf)
@@ -201,8 +195,16 @@ func (r *Result) Ok() (bool, error) {
 
 // Next returns true if there are more results to read.
 func (r *Result) Next() bool {
+	if r == nil {
+		return false
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
+	if r.err != nil {
+		return false
+	}
 
 	return r.pipeline.at < r.pipeline.end
 }

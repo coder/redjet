@@ -147,6 +147,34 @@ func TestClient_IdleDrain(t *testing.T) {
 	}, time.Second, 10*time.Millisecond)
 }
 
+func TestClient_ShortRead(t *testing.T) {
+	t.Parallel()
+	_, client := startRedisServer(t)
+	// Test that the connection can be successfully re-used
+	// even when pipeline is short-read.
+
+	for i := 0; i < 100; i++ {
+		var r *Result
+		r = client.Pipeline(context.Background(), r, "SET", "foo", "bar")
+		r = client.Pipeline(context.Background(), r, "GET", "foo")
+		if 1%10 == 0 {
+			err := r.Close()
+			require.NoError(t, err)
+			continue
+		}
+		gotOk, err := r.Ok()
+		require.NoError(t, err)
+		require.True(t, gotOk)
+
+		got, err := r.Bytes()
+		require.NoError(t, err)
+		require.Equal(t, []byte("bar"), got)
+
+		err = r.Close()
+		require.NoError(t, err)
+	}
+}
+
 func Benchmark_Get(b *testing.B) {
 	_, client := startRedisServer(b)
 
@@ -171,13 +199,25 @@ func Benchmark_Get(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 			b.SetBytes(int64(len(payload)))
-			for i := 0; i < b.N; i++ {
-				n, err := client.Command(ctx, "GET", "foo").WriteTo(io.Discard)
-				require.NoError(b, err, "i=%d", i)
-				if int(n) != len(payload) {
-					b.Fatalf("unexpected written: %d", n)
+
+			const (
+				batchSize = 100
+			)
+			var r *Result
+			get := func() {
+				for r.Next() {
+					n, err := r.WriteTo(io.Discard)
+					require.NoError(b, err)
+					require.EqualValues(b, len(payload), n)
 				}
 			}
+			for i := 0; i < b.N; i++ {
+				r = client.Pipeline(ctx, r, "GET", "foo")
+				if (i+1)%batchSize == 0 {
+					get()
+				}
+			}
+			get()
 		})
 	}
 }
