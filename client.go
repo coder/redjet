@@ -60,6 +60,8 @@ func (c *Client) getConn(ctx context.Context) (net.Conn, error) {
 
 func (c *Client) putConn(conn net.Conn) {
 	c.initPool()
+	// Clear any deadline.
+	conn.SetDeadline(time.Time{})
 	c.pool.put(conn, c.IdleTimeout)
 }
 
@@ -100,8 +102,9 @@ func writeBulkBytes(w *bufio.Writer, b []byte) {
 func (c *Client) Command(ctx context.Context, cmd string, args ...any) (r *Result) {
 	conn, err := c.getConn(ctx)
 	if err != nil {
-		r.err = err
-		return
+		return &Result{
+			err: fmt.Errorf("get conn: %w", err),
+		}
 	}
 
 	// The buffered writer reduces syscall overhead and gives us cleaner code.
@@ -130,18 +133,29 @@ func (c *Client) Command(ctx context.Context, cmd string, args ...any) (r *Resul
 		}
 	}
 
-	r.err = wr.Flush()
-	if r.err != nil {
+	err = wr.Flush()
+	if err != nil {
 		conn.Close()
-		return
+		return &Result{
+			err: fmt.Errorf("write cmd: %w", err),
+		}
 	}
 
 	rd := bufReaderPool.Get().(*bufio.Reader)
 	rd.Reset(conn)
 
-	return &Result{
-		conn:   conn,
-		rd:     rd,
-		client: c,
+	success := &Result{
+		conn:    conn,
+		rd:      rd,
+		client:  c,
+		closeCh: make(chan struct{}),
 	}
+	go func() {
+		select {
+		case <-ctx.Done():
+			success.Close()
+		case <-success.closeCh:
+		}
+	}()
+	return success
 }

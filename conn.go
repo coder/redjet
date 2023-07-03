@@ -44,6 +44,9 @@ func (p *connPool) put(nc net.Conn, idleTimeout time.Duration) {
 	c := &conn{
 		Conn: nc,
 	}
+	if idleTimeout <= 0 {
+		panic("idleTimeout must be > 0")
+	}
 	c.idleCloseTimer = time.AfterFunc(idleTimeout, func() {
 		c.Close()
 	})
