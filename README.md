@@ -12,9 +12,6 @@ a low-allocation, streaming API.
 - [Benchmarks](#benchmarks)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
----
-
-![header](header.jpg)
 
 # Introduction
 
