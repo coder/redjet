@@ -70,7 +70,8 @@ func startRedisServer(t testing.TB) (string, *Client) {
 			IdleTimeout: 100 * time.Millisecond,
 		}
 		t.Cleanup(func() {
-			c.Close()
+			err := c.Close()
+			require.NoError(t, err)
 		})
 		return socket, c
 	}
@@ -218,6 +219,10 @@ func Benchmark_Get(b *testing.B) {
 				}
 			}
 			get()
+			err = r.Close()
+			require.NoError(b, err)
+			b.StopTimer()
+			time.Sleep(100 * time.Millisecond)
 		})
 	}
 }

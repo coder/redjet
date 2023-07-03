@@ -3,6 +3,7 @@ package redjet
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -164,6 +165,7 @@ func (c *Client) Pipeline(ctx context.Context, r *Result, cmd string, args ...an
 				at:  0,
 				end: 1,
 			},
+			CloseOnRead: false,
 		}
 		go func() {
 			select {
@@ -183,21 +185,27 @@ func (c *Client) Pipeline(ctx context.Context, r *Result, cmd string, args ...an
 //
 // The result must be closed or drained to avoid leaking resources.
 func (c *Client) Command(ctx context.Context, cmd string, args ...any) *Result {
-	return c.Pipeline(ctx, nil, cmd, args...)
+	r := c.Pipeline(ctx, nil, cmd, args...)
+	r.CloseOnRead = true
+	return r
 }
 
 func (c *Client) Close() error {
 	c.poolMu.Lock()
 	defer c.poolMu.Unlock()
 
+	var merr error
 	if c.pool != nil {
+		close(c.pool.cancelClean)
+		<-c.pool.cleanExited
+		// The cleaner may read free until it exits.
 		close(c.pool.free)
 		for conn := range c.pool.free {
-			conn.Close()
+			err := conn.Close()
+			merr = errors.Join(merr, err)
 		}
-		close(c.pool.canceled)
 		c.pool.cleanTicker.Stop()
 		c.pool = nil
 	}
-	return nil
+	return merr
 }

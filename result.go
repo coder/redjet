@@ -36,6 +36,11 @@ type Result struct {
 	client *Client
 
 	pipeline pipeline
+
+	// CloseOnRead determines whether the result is closed after the first read.
+	// It is set to True when the result is returned from Command, and
+	// False when it is returned from Pipeline.
+	CloseOnRead bool
 }
 
 func (r *Result) Error() string {
@@ -102,10 +107,16 @@ var _ io.WriterTo = (*Result)(nil)
 
 // WriteTo returns the result as a byte slice.
 //
-// It leaves the result open for pipelineing.
+// Refer to r.CloseOnRead for whether the result is closed after the first read.
 func (r *Result) WriteTo(w io.Writer) (int64, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
+	defer func() {
+		if r.CloseOnRead {
+			r.close()
+		}
+	}()
 
 	return r.writeTo(w)
 }
@@ -174,7 +185,7 @@ func (r *Result) writeTo(w io.Writer) (int64, error) {
 
 // Bytes returns the result as a byte slice.
 //
-// It closes the result, regardless of whether the result is a pipeline.
+// Refer to r.CloseOnRead for whether the result is closed after the first read.
 func (r *Result) Bytes() ([]byte, error) {
 	var buf bytes.Buffer
 	_, err := r.WriteTo(&buf)
@@ -184,7 +195,6 @@ func (r *Result) Bytes() ([]byte, error) {
 // Ok returns whether the result is "OK". Note that it may fail even if the
 //
 // command succeeded. For example, a successful GET will return a value.
-// It closes the result if the pipeline is complete.
 func (r *Result) Ok() (bool, error) {
 	got, err := r.Bytes()
 	if err != nil {
@@ -210,6 +220,7 @@ func (r *Result) Next() bool {
 }
 
 // Close releases all resources associated with the result.
+//
 // It is safe to call Close multiple times.
 func (r *Result) Close() error {
 	r.mu.Lock()
@@ -223,7 +234,11 @@ func (r *Result) close() error {
 		// Read the result into discard so that the connection can be reused.
 		_, err := r.writeTo(io.Discard)
 		if errors.Is(err, errClosed) {
-			return nil
+			// Should be impossible to close a result without draining
+			// it, in which case at == end and we would never get here.
+			panic("result closed while iterating")
+		} else if err != nil {
+			return err
 		}
 	}
 
@@ -234,6 +249,7 @@ func (r *Result) close() error {
 	if r.closeCh != nil {
 		close(r.closeCh)
 	}
+
 	if r.err == nil {
 		r.client.putConn(r.conn)
 	}

@@ -15,9 +15,12 @@ type conn struct {
 }
 
 type connPool struct {
-	free        chan *conn
-	canceled    chan struct{}
+	free chan *conn
+
+	cancelClean chan struct{}
+	cleanExited chan struct{}
 	cleanTicker *time.Ticker
+
 	idleTimeout time.Duration
 }
 
@@ -26,7 +29,8 @@ func newConnPool(size int, idleTimeout time.Duration) *connPool {
 		free: make(chan *conn, size),
 		// 3 is chosen arbitrarily.
 		cleanTicker: time.NewTicker(idleTimeout * 3),
-		canceled:    make(chan struct{}),
+		cancelClean: make(chan struct{}),
+		cleanExited: make(chan struct{}),
 		idleTimeout: idleTimeout,
 	}
 	go p.clean()
@@ -34,18 +38,22 @@ func newConnPool(size int, idleTimeout time.Duration) *connPool {
 }
 
 func (p *connPool) clean() {
+	defer close(p.cleanExited)
 	// We use a centralized routine for cleaning instead of AfterFunc on each
 	// connection because the latter creates more garbage, even though it scales
 	// logarithmically as opposed to linearly.
 	for {
 		select {
-		case <-p.canceled:
+		case <-p.cancelClean:
 			return
 		case <-p.cleanTicker.C:
 			for {
 				select {
 				// Remove all idle connections.
-				case c := <-p.free:
+				case c, ok := <-p.free:
+					if !ok {
+						panic("pool closed improperly")
+					}
 					if time.Since(c.lastUsed) > p.idleTimeout {
 						c.Close()
 						continue
