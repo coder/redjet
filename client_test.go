@@ -256,6 +256,20 @@ func TestClient_Integer(t *testing.T) {
 	require.Equal(t, 3, gotLen)
 }
 
+func TestClient_AnyType(t *testing.T) {
+	t.Parallel()
+
+	_, client := startRedisServer(t)
+
+	ctx := context.Background()
+	err := client.Command(ctx, "SET", "foo", time.Hour).Ok()
+	require.NoError(t, err)
+
+	got, err := client.Command(ctx, "GET", "foo").String()
+	require.NoError(t, err)
+	require.EqualValues(t, "1h0m0s", got)
+}
+
 func TestClient_MGet(t *testing.T) {
 	t.Parallel()
 
@@ -336,6 +350,48 @@ func TestClient_PubSub(t *testing.T) {
 		Type:    "message",
 		Payload: "bar",
 	}, msg)
+}
+
+func TestClient_ConnReuse(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode")
+	}
+
+	// This test is not parallel because it is sensitive to timing.
+
+	socket, client := startRedisServer(t)
+
+	var connsMade int64
+	client.Dial = func(_ context.Context) (net.Conn, error) {
+		atomic.AddInt64(&connsMade, 1)
+		return net.Dial("unix", socket)
+	}
+
+	// Test that connections aren't created unnecessarily.
+
+	start := time.Now()
+	for i := 0; i < 16; i++ {
+		time.Sleep(client.IdleTimeout / 4)
+
+		err := client.Command(context.Background(), "SET", "foo", "bar").Ok()
+		require.NoError(t, err)
+
+		t.Logf("i=%d, sinceStart=%v", i, time.Since(start))
+		require.Equal(t, int64(1+i), atomic.LoadInt64(&client.pool.returns))
+		require.Equal(t, int64(0), atomic.LoadInt64(&client.pool.fullPoolCloses))
+		require.Equal(t, int64(1), atomic.LoadInt64(&connsMade))
+		require.Equal(t, 1, client.freeConns())
+	}
+
+	time.Sleep(client.IdleTimeout * 4)
+
+	require.Equal(t, int64(1), atomic.LoadInt64(&connsMade))
+	require.Equal(t, 0, client.freeConns())
+
+	// The clean cycle should've ran more than once by now.
+	require.Greater(t,
+		atomic.LoadInt64(&client.pool.cleanCycles), int64(1),
+	)
 }
 
 func Benchmark_Get(b *testing.B) {
