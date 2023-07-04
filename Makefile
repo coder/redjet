@@ -6,6 +6,10 @@ SHELL = /bin/bash
 test:
 	go test -race -timeout=60s .
 
+
+lint:
+	golangci-lint run
+
 .PHONY: doctoc
 doctoc:
 	doctoc --title "**Table of Contents**" --github README.md
