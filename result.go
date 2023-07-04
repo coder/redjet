@@ -30,6 +30,12 @@ func IsUnknownCommand(err error) bool {
 	return errors.As(err, &e) && strings.HasPrefix(e.raw, "ERR unknown command")
 }
 
+// pipeline contains state of a Redis pipeline.
+type pipeline struct {
+	at  int
+	end int
+}
+
 // Result is the result of a command.
 //
 // Its methods are not safe for concurrent use.

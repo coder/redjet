@@ -49,11 +49,41 @@ func main() {
 
 # Streaming
 
-When it comes time for performance, you may call `WriteTo` on the result
+When performance is essential, you may call `WriteTo` on the result
 instead of `Bytes`, which will stream the response directly to an `io.Writer` such as a file or HTTP response.
 
+For example:
+
+```go
+_, err := client.Command(ctx, "GET", "big-object").WriteTo(os.Stdout)
+// check error
+```
+
 Similarly, you can pass in a value that implements `redjet.LenReader` to
-`Command` to stream larger readers into Redis.
+`Command` to stream larger readers into Redis. Unfortunately, the API
+cannot accept a regular `io.Reader` because bulk string messages in
+the Redis protocol are length-prefixed.
+
+Here's an example of streaming a large file into Redis:
+
+```go
+bigFile, err := os.Open("bigfile.txt")
+// check error
+defer bigFile.Close()
+
+stat, err := bigFile.Stat()
+// check error
+
+err = client.Command(
+    ctx, "SET", "bigfile",
+    redjet.NewLenReader(bigFile, stat.Size()),
+).Ok()
+// check error
+```
+
+
+If you have no way of knowing the size of your blob in advance and still
+want to avoid large allocations, you may chunk a stream into Redis using repeated [`APPEND`](https://redis.io/commands/append/) commands.
 
 # Pipelining
 
