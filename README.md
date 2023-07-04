@@ -1,5 +1,7 @@
 # Redjet
 [![Go Reference](https://pkg.go.dev/badge/github.com/ammario/redjet.svg)](https://pkg.go.dev/github.com/ammario/redjet)
+![ci](https://github.com/ammario/redjet/actions/workflows/ci.yml/badge.svg)
+
 
 
 redjet is a high-performance Go library for Redis. Its hallmark feature is
