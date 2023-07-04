@@ -1,5 +1,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/ammario/redjet.svg)](https://pkg.go.dev/github.com/ammario/redjet)
 
+# Redjet
+
 redjet is a high-performance Go library for Redis. Its hallmark feature is
 a low-allocation, streaming API.
 
@@ -7,6 +9,7 @@ a low-allocation, streaming API.
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
 
+- [Redjet](#redjet)
 - [API Design](#api-design)
 - [Basic Usage](#basic-usage)
 - [Streaming](#streaming)
