@@ -62,7 +62,8 @@ func startRedisServer(t testing.TB, args ...string) (string, *Client) {
 
 	time.AfterFunc(5*time.Second, func() {
 		if atomic.LoadInt64(&serverStarted) == 0 {
-			t.Fatalf("redis-server failed to start")
+			t.Errorf("redis-server failed to start")
+			serverStdoutWr.Close()
 		}
 	})
 
