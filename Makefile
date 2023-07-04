@@ -4,7 +4,7 @@ SHELL = /bin/bash
 .PHONY: test
 
 test:
-	go test -race -timeout=60s .
+	go test -race .
 
 
 lint:

@@ -9,3 +9,11 @@ jobs:
         run: sudo apt-get install redis-server
       - name: make test
         run: make test
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: install golangci-lint
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+      - name: make lint
+        run: make lint
