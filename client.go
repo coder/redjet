@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -55,13 +56,6 @@ func New(addr string) *Client {
 	return c
 }
 
-func (c *Client) freeConns() int {
-	if c.pool == nil {
-		return 0
-	}
-	return len(c.pool.free)
-}
-
 func (c *Client) initPool() {
 	c.poolMu.Lock()
 	defer c.poolMu.Unlock()
@@ -69,6 +63,13 @@ func (c *Client) initPool() {
 	if c.pool == nil {
 		c.pool = newConnPool(c.ConnectionPoolSize, c.IdleTimeout)
 	}
+}
+
+func (c *Client) freeConns() int {
+	if c.pool == nil {
+		return 0
+	}
+	return len(c.pool.free)
 }
 
 // getConn gets a new conn, wrapped in a Result. The conn is already authenticated.
@@ -207,6 +208,13 @@ func (c *Client) Pipeline(ctx context.Context, r *Result, cmd string, args ...an
 			case <-r.closeCh:
 			}
 		}()
+	}
+
+	cmd = strings.ToUpper(cmd)
+	// Redis already gives a nice error if we send a non-subscribe command
+	// while in subscribe mode.
+	if isSubscribeCmd(cmd) {
+		r.subscribeMode = true
 	}
 
 	// We're instructing redis that we're sending an array of the command

@@ -45,6 +45,19 @@ type pipeline struct {
 //
 // Its methods are not safe for concurrent use.
 type Result struct {
+	// CloseOnRead determines whether the result is closed after the first read.
+	//
+	// It is set to True when the result is returned from Command, and
+	// False when it is returned from Pipeline.
+	//
+	// It is ignored if in the middle of reading an array, or if the result
+	// is of a subscribe command.
+	CloseOnRead bool
+
+	// subscribeMode is set to true when the result is returned from Subscribe.
+	// In this case, the connection cannot be reused.
+	subscribeMode bool
+
 	mu sync.Mutex
 
 	closeCh chan struct{}
@@ -56,11 +69,6 @@ type Result struct {
 	client *Client
 
 	pipeline pipeline
-
-	// CloseOnRead determines whether the result is closed after the first read.
-	// It is set to True when the result is returned from Command, and
-	// False when it is returned from Pipeline.
-	CloseOnRead bool
 
 	// arrayStack tracks the depth of the array processing. E.g. if we're one
 	// level deep with 3 elements remaining, arrayStack will be [3].
@@ -141,7 +149,7 @@ func (r *Result) WriteTo(w io.Writer) (int64, error) {
 	defer r.mu.Unlock()
 
 	defer func() {
-		if r.CloseOnRead && len(r.arrayStack) == 0 {
+		if r.CloseOnRead && len(r.arrayStack) == 0 && !r.subscribeMode {
 			r.close()
 		}
 	}()
@@ -217,7 +225,7 @@ func (r *Result) writeTo(w io.Writer) (int64, replyType, error) {
 		return 0, 0, r.err
 	}
 
-	if r.pipeline.at == r.pipeline.end && len(r.arrayStack) == 0 {
+	if r.pipeline.at == r.pipeline.end && len(r.arrayStack) == 0 && !r.subscribeMode {
 		return 0, 0, fmt.Errorf("no more results")
 	}
 
@@ -227,9 +235,11 @@ func (r *Result) writeTo(w io.Writer) (int64, replyType, error) {
 		return 0, 0, r.err
 	}
 
-	// The type byte should come fast since its so small. A timeout here implies
-	// a protocol error.
-	r.conn.SetDeadline(time.Now().Add(time.Second * 5))
+	if !r.subscribeMode {
+		// The type byte should come fast since its so small. A timeout here implies
+		// a protocol error.
+		r.conn.SetDeadline(time.Now().Add(time.Second * 5))
+	}
 
 	var typByte byte
 	typByte, r.err = r.conn.rd.ReadByte()
@@ -434,7 +444,7 @@ func (r *Result) close() error {
 		close(r.closeCh)
 	}
 
-	if r.err == nil {
+	if r.err == nil && !r.subscribeMode {
 		r.client.putConn(r.conn)
 		return nil
 	}

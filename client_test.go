@@ -276,6 +276,38 @@ func TestClient_Auth(t *testing.T) {
 	})
 }
 
+func TestClient_PubSub(t *testing.T) {
+	t.Parallel()
+
+	_, client := startRedisServer(t)
+
+	ctx := context.Background()
+	subCmd := client.Command(ctx, "SUBSCRIBE", "foo")
+	defer subCmd.Close()
+
+	msg, err := subCmd.NextSubMessage()
+	require.NoError(t, err)
+
+	require.Equal(t, &SubMessage{
+		Channel: "foo",
+		Type:    "subscribe",
+		Payload: "1",
+	}, msg)
+
+	n, err := client.Command(ctx, "PUBLISH", "foo", "bar").Int()
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+
+	msg, err = subCmd.NextSubMessage()
+	require.NoError(t, err)
+
+	require.Equal(t, &SubMessage{
+		Channel: "foo",
+		Type:    "message",
+		Payload: "bar",
+	}, msg)
+}
+
 func Benchmark_Get(b *testing.B) {
 	_, client := startRedisServer(b)
 
