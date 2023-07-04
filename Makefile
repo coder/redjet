@@ -4,16 +4,22 @@ SHELL = /bin/bash
 .PHONY: test
 
 test:
-	go test -race -timeout=60s .
+	go test -timeout=3m -race . -coverprofile=coverage.out -covermode=atomic
 
+send-cover:
+	go install github.com/mattn/goveralls@v0.0.12
+	goveralls -coverprofile=coverage.out -service=github
 
+.PHONY: lint
 lint:
-	golangci-lint run
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.53.3
+	~/go/bin/golangci-lint run
 
 .PHONY: doctoc
 doctoc:
 	doctoc --title "**Table of Contents**" --github README.md
 
+.PHONY: gen-bench
 gen-bench:
 	pushd bench
 	rm -f /tmp/*.bench.out

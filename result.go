@@ -437,6 +437,7 @@ func (r *Result) close() error {
 	}
 
 	if !atomic.CompareAndSwapInt64(&r.closed, 0, 1) {
+		// double-close
 		return nil
 	}
 
@@ -444,9 +445,13 @@ func (r *Result) close() error {
 		close(r.closeCh)
 	}
 
+	conn := r.conn
+	// r.conn is set to nil to prevent accidental reuse.
+	r.conn = nil
 	if r.err == nil && !r.subscribeMode {
-		r.client.putConn(r.conn)
+		r.client.putConn(conn)
 		return nil
 	}
-	return r.conn.Close()
+
+	return conn.Close()
 }

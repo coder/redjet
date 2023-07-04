@@ -141,6 +141,14 @@ func writeBulkBytes(w *bufio.Writer, b []byte) {
 	w.WriteString(crlf)
 }
 
+func writeBulkReader(w *bufio.Writer, rd LenReader) {
+	w.WriteString("$")
+	w.WriteString(strconv.Itoa(rd.Len()))
+	w.WriteString(crlf)
+	io.CopyN(w, rd, int64(rd.Len()))
+	w.WriteString(crlf)
+}
+
 // LenReader is an io.Reader that also knows its length.
 // A new one may be created with NewLenReader.
 type LenReader interface {
@@ -162,15 +170,6 @@ func NewLenReader(r io.Reader, size int) LenReader {
 		Reader: r,
 		size:   size,
 	}
-}
-
-func writeBulkReader(w *bufio.Writer, rd LenReader) {
-	w.WriteString("$")
-	w.WriteString(strconv.Itoa(rd.Len()))
-	w.WriteString(crlf)
-	w.ReadFrom(rd)
-	io.Copy(w, rd)
-	w.WriteString(crlf)
 }
 
 func (c *Client) newResult(conn *conn) *Result {
