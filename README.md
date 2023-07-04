@@ -11,7 +11,7 @@ a low-allocation, streaming API.
 - [Basic Usage](#basic-usage)
 - [Streaming](#streaming)
 - [Pipelining](#pipelining)
-  - [PubSub](#pubsub)
+- [PubSub](#pubsub)
 - [Connection Pooling](#connection-pooling)
 - [Benchmarks](#benchmarks)
 - [Limitations](#limitations)
@@ -124,7 +124,7 @@ for r.Next() {
 Fun fact: authentication happens over a pipeline, so it doesn't incur a round-trip.
 
 
-## PubSub
+# PubSub
 
 redjet suports PubSub via the `NextSubMessage` method. For example:
 
