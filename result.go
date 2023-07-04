@@ -142,21 +142,50 @@ func (r *Result) WriteTo(w io.Writer) (int64, error) {
 		}
 	}()
 
-	ww, isArray, err := r.writeTo(w)
+	n, err := r.writeTo(w)
 	if err != nil {
-		return ww, err
+		return n, err
 	}
-	return ww, nil
+	return n, nil
 }
 
 // ArrayStack returns the position of the result within an array.
 //
 // The returned slice must not be modified.
-func (r *Result) Array() []int {
+func (r *Result) ArrayStack() []int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	return r.arrayStack
+}
+
+// Strings returns the array result as a slice of strings.
+func (r *Result) Strings() ([]string, error) {
+	// Sanity check that the ArrayStack matches the length.
+	if len(r.ArrayStack()) == 0 {
+		return nil, fmt.Errorf("not in an array")
+	}
+
+	// Read the array length.
+	n, err := r.Int()
+	if err != nil {
+		return nil, err
+	}
+
+	// Sanity check that the array length matches the value on the stack.
+	if st := r.ArrayStack()[len(r.ArrayStack())-1]; st != n {
+		return nil, fmt.Errorf("array stack mismatch (expected %d, got %d)", st, n)
+	}
+
+	var ss []string
+	for i := 0; i < n; i++ {
+		s, err := r.String()
+		if err != nil {
+			return nil, err
+		}
+		ss = append(ss, s)
+	}
+	return ss, nil
 }
 
 // writeTo writes the result to w. The second return value is whether or not
@@ -332,7 +361,7 @@ func (r *Result) Close() error {
 func (r *Result) close() error {
 	for r.next() {
 		// Read the result into discard so that the connection can be reused.
-		_, _, err := r.writeTo(io.Discard)
+		_, err := r.writeTo(io.Discard)
 		if errors.Is(err, errClosed) {
 			// Should be impossible to close a result without draining
 			// it, in which case at == end and we would never get here.
