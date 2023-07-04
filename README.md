@@ -12,6 +12,7 @@ a low-allocation, streaming API.
 - [Streaming](#streaming)
 - [Pipelining](#pipelining)
   - [PubSub](#pubsub)
+- [Connection Pooling](#connection-pooling)
 - [Benchmarks](#benchmarks)
 - [Limitations](#limitations)
 
@@ -151,6 +152,15 @@ re-use it.
 
 It is possible to subscribe to a channel in a performant, low-allocation way
 via the public API. NextSubMessage is just a convenience method.
+
+# Connection Pooling
+
+Redjet provides automatic connection pooling. Configuration knobs exist
+within the `Client` struct that may be changed before any Commands are
+issued.
+
+If you want synchronous command executation over the same connection, use the `Pipeline` method and consume the Result after each call to `Pipeline`. Storing a long-lived `Result`
+offers the same functionality as storing a long-lived connection.
 
 # Benchmarks
 
