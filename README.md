@@ -5,7 +5,7 @@ a low-allocation, streaming API.
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
 
-- [Introduction](#introduction)
+- [API Design](#api-design)
 - [Basic Usage](#basic-usage)
 - [Streaming](#streaming)
 - [Pipelining](#pipelining)
@@ -14,7 +14,7 @@ a low-allocation, streaming API.
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-# Introduction
+# API Design
 
 Unlike [redigo](https://github.com/gomodule/redigo) and [go-redis](https://github.com/redis/go-redis), redjet does not provide a function for every
 Redis command. Instead, it offers a generic interface that supports [all commands
@@ -50,8 +50,8 @@ func main() {
 
 # Streaming
 
-When performance is essential, you may call `WriteTo` on the result
-instead of `Bytes`, which will stream the response directly to an `io.Writer` such as a file or HTTP response.
+To minimize allocations, call `(*Result).WriteTo` instead of `(*Result).Bytes`.
+`WriteTo` stream the response directly to an `io.Writer` such as a file or HTTP response.
 
 For example:
 
@@ -88,7 +88,7 @@ want to avoid large allocations, you may chunk a stream into Redis using repeate
 
 # Pipelining
 
-`redjet` supports [pipelining](https://redis.io/docs/manual/pipelining/) via the `Pipeline` method. This method accepts a Result, potentially that of a previous command.
+`redjet` supports [pipelining](https://redis.io/docs/manual/pipelining/) via the `Pipeline` method. This method accepts a Result, potentially that of a previous, open command.
 
 ```go
 // Set foo0, foo1, ..., foo99 to "bar", and confirm that each succeeded.
