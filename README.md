@@ -9,6 +9,7 @@ a low-allocation, streaming API.
 - [Basic Usage](#basic-usage)
 - [Streaming](#streaming)
 - [Pipelining](#pipelining)
+  - [PubSub](#pubsub)
 - [Benchmarks](#benchmarks)
 - [Limitations](#limitations)
 
@@ -113,6 +114,36 @@ for r.Next() {
 
 Fun fact: authentication happens over a pipeline, so it doesn't incur a round-trip.
 
+
+## PubSub
+
+redjet suports PubSub via the `NextSubMessage` method. For example:
+
+```go
+// Subscribe to a channel
+sub := client.Command(ctx, "SUBSCRIBE", "my-channel")
+sub.NextSubMessage() // ignore the first message, which is a confirmation of the subscription
+
+// Publish a message to the channel
+n, err := client.Command(ctx, "PUBLISH", "my-channel", "hello world").Int()
+// check error
+// n == 1, since there is one subscriber
+
+// Receive the message
+sub.NextSubMessage()
+// sub.Payload == "hello world"
+// sub.Channel == "my-channel"
+// sub.Type == "message"
+```
+
+Note that `NextSubMessage` will block until a message is received. To interrupt the subscription, cancel the context passed to `Command`.
+
+Once a connection enters subscribe mode, the internal pool does not
+re-use it.
+
+It is possible to subscribe to a channel in a performant, low-allocation way
+via the public API. NextSubMessage is just a convenience method.
+
 # Benchmarks
 
 On a pure throughput basis, redjet will perform similarly to redigo and go-redis.
@@ -155,3 +186,6 @@ well-tested library like redigo or go-redis.
 - RESP3 is not supported. Practically, this means that connections aren't
   multiplexed, and other Redis libraries may perform better in high-concurrency
   scenarios.
+- Certain features have not been tested yet but may work:
+  - Redis Streams
+  - Monitor
