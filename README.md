@@ -1,6 +1,6 @@
+# Redjet
 [![Go Reference](https://pkg.go.dev/badge/github.com/ammario/redjet.svg)](https://pkg.go.dev/github.com/ammario/redjet)
 
-# Redjet
 
 redjet is a high-performance Go library for Redis. Its hallmark feature is
 a low-allocation, streaming API. See the [benchmarks](#benchmarks) section for
@@ -20,17 +20,17 @@ is really a Pipeline of size 1.
 **Table of Contents**
 
 - [Redjet](#redjet)
-- [Basic Usage](#basic-usage)
-- [Streaming](#streaming)
-- [Pipelining](#pipelining)
-- [PubSub](#pubsub)
-- [Connection Pooling](#connection-pooling)
-- [Benchmarks](#benchmarks)
-- [Limitations](#limitations)
+  - [Basic Usage](#basic-usage)
+  - [Streaming](#streaming)
+  - [Pipelining](#pipelining)
+  - [PubSub](#pubsub)
+  - [Connection Pooling](#connection-pooling)
+  - [Benchmarks](#benchmarks)
+  - [Limitations](#limitations)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-# Basic Usage
+## Basic Usage
 
 Install:
 
@@ -64,7 +64,7 @@ func main() {
 }
 ```
 
-# Streaming
+## Streaming
 
 To minimize allocations, call `(*Result).WriteTo` instead of `(*Result).Bytes`.
 `WriteTo` stream the response directly to an `io.Writer` such as a file or HTTP response.
@@ -102,7 +102,7 @@ err = client.Command(
 If you have no way of knowing the size of your blob in advance and still
 want to avoid large allocations, you may chunk a stream into Redis using repeated [`APPEND`](https://redis.io/commands/append/) commands.
 
-# Pipelining
+## Pipelining
 
 `redjet` supports [pipelining](https://redis.io/docs/manual/pipelining/) via the `Pipeline` method. This method accepts a Result, potentially that of a previous, open command.
 
@@ -125,7 +125,7 @@ for r.Next() {
 Fun fact: authentication happens over a pipeline, so it doesn't incur a round-trip.
 
 
-# PubSub
+## PubSub
 
 redjet suports PubSub via the `NextSubMessage` method. For example:
 
@@ -154,7 +154,7 @@ re-use it.
 It is possible to subscribe to a channel in a performant, low-allocation way
 via the public API. NextSubMessage is just a convenience method.
 
-# Connection Pooling
+## Connection Pooling
 
 Redjet provides automatic connection pooling. Configuration knobs exist
 within the `Client` struct that may be changed before any Commands are
@@ -164,7 +164,7 @@ If you want synchronous command execution over the same connection,
 use the `Pipeline` method and consume the Result after each call to `Pipeline`. Storing a long-lived `Result`
 offers the same functionality as storing a long-lived connection.
 
-# Benchmarks
+## Benchmarks
 
 On a pure throughput basis, redjet will perform similarly to redigo and go-redis.
 But, since redjet doesn't allocate memory for the entire response object, it
@@ -199,7 +199,7 @@ of all libraries converge as response size decreases. If you don't
 need the performance this library offers, you should probably use a more
 well-tested library like redigo or go-redis.
 
-# Limitations
+## Limitations
 
 - redjet does not have tidy support for client side caching. But, the redjet API
   is flexible enough that a client could implement it themselves by following the instructions [here](https://redis.io/docs/manual/client-side-caching/#two-connections-mode).
