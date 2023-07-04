@@ -93,7 +93,7 @@ func readBulkString(c net.Conn, rd *bufio.Reader, w io.Writer) (int, error) {
 	}
 
 	// n == -1 signals a nil value.
-	if n == -1 {
+	if n <= 0 {
 		return 0, nil
 	}
 
@@ -102,9 +102,6 @@ func readBulkString(c net.Conn, rd *bufio.Reader, w io.Writer) (int, error) {
 		time.Second*5 + (time.Duration(n) * time.Second),
 	))
 
-	if n == -1 {
-		return 0, nil
-	}
 	var nn int64
 	// CopyN should not allocate because rd is a bufio.Reader and implements
 	// WriteTo.
@@ -131,18 +128,20 @@ var _ io.WriterTo = (*Result)(nil)
 
 // WriteTo writes the result to w.
 //
-// Refer to r.CloseOnRead for whether the result is closed after the first read.
+// r.CloseOnRead sets whether the result is closed after the first read.
+//
+// The result is never automatically closed if in progress of reading an array.
 func (r *Result) WriteTo(w io.Writer) (int64, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	defer func() {
-		if r.CloseOnRead {
+		if r.CloseOnRead && len(r.arrayStack) == 0 {
 			r.close()
 		}
 	}()
 
-	n, err := r.writeTo(w)
+	n, _, err := r.writeTo(w)
 	if err != nil {
 		return n, err
 	}
@@ -161,77 +160,94 @@ func (r *Result) ArrayStack() []int {
 
 // Strings returns the array result as a slice of strings.
 func (r *Result) Strings() ([]string, error) {
+	// Strings intentionally doesn't hold the mutex or interact with other
+	// internal fields to demonstrate how to use the public API.
+	defer func() {
+		if r.CloseOnRead {
+			r.Close()
+		}
+	}()
+
 	// Read the array length.
-	n, err := r.Int()
+	ln, err := r.ArrayLength()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read array length: %w", err)
 	}
 
-	if len(r.ArrayStack()) == 0 {
-		return nil, fmt.Errorf("not in an array")
-	}
-
-	// Sanity check that the array length matches the value on the stack.
-	if st := r.ArrayStack()[len(r.ArrayStack())-1]; st != n {
-		return nil, fmt.Errorf("array stack mismatch (expected %d, got %d)", st, n)
+	if ln < 0 {
+		return nil, nil
 	}
 
 	var ss []string
-	for i := 0; i < n; i++ {
+	for i := 0; i < ln; i++ {
 		s, err := r.String()
 		if err != nil {
-			return nil, err
+			return ss, fmt.Errorf("read string %d: %w", i, err)
 		}
 		ss = append(ss, s)
 	}
 	return ss, nil
 }
 
+type replyType byte
+
+const (
+	replyTypeSimpleString replyType = '+'
+	replyTypeError        replyType = '-'
+	replyTypeInteger      replyType = ':'
+	replyTypeBulkString   replyType = '$'
+	replyTypeArray        replyType = '*'
+)
+
 // writeTo writes the result to w. The second return value is whether or not
 // the value indicates an array.
-func (r *Result) writeTo(w io.Writer) (int64, error) {
-	panic("TODO return the type so that other methods (like array detection) can be more elegantly implemented")
-
+//
+// It is the master function of the Result type, centralizing key logic.
+func (r *Result) writeTo(w io.Writer) (int64, replyType, error) {
 	if err := r.checkClosed(); err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 
 	if r.err != nil {
-		return 0, r.err
+		return 0, 0, r.err
 	}
 
 	if r.pipeline.at == r.pipeline.end && len(r.arrayStack) == 0 {
-		return 0, fmt.Errorf("no more results")
+		return 0, 0, fmt.Errorf("no more results")
 	}
 
 	r.err = r.conn.wr.Flush()
 	if r.err != nil {
 		r.err = fmt.Errorf("flush: %w", r.err)
-		return 0, r.err
+		return 0, 0, r.err
 	}
 
 	// The type byte should come fast since its so small. A timeout here implies
 	// a protocol error.
 	r.conn.SetDeadline(time.Now().Add(time.Second * 5))
 
-	var typ byte
-	typ, r.err = r.conn.rd.ReadByte()
+	var typByte byte
+	typByte, r.err = r.conn.rd.ReadByte()
 	if r.err != nil {
 		r.err = fmt.Errorf("read type: %w", r.err)
-		return 0, r.err
+		return 0, 0, r.err
 	}
+	typ := replyType(typByte)
 
 	// incrRead is how we advance the read state machine.
 	incrRead := func() {
-		// If we're in an array, we're not making progress on the pipeline,
+		if len(r.arrayStack) == 0 {
+			r.pipeline.at++
+			return
+		}
+		// If we're in an array, we're not making progress on the inter-command pipeline,
 		// we're just reading the array elements.
-		if len(r.arrayStack) > 0 {
-			i := len(r.arrayStack) - 1
-			r.arrayStack[i]--
-			if r.arrayStack[i] == 0 {
-				r.arrayStack = r.arrayStack[:i]
-			}
-		} else {
+		i := len(r.arrayStack) - 1
+		r.arrayStack[i] = r.arrayStack[i] - 1
+
+		if r.arrayStack[i] == 0 {
+			r.arrayStack = r.arrayStack[:i]
+			// This was just cleanup, we move the pipeline forward.
 			r.pipeline.at++
 		}
 	}
@@ -239,11 +255,11 @@ func (r *Result) writeTo(w io.Writer) (int64, error) {
 	var s []byte
 
 	switch typ {
-	case '+', ':', '*':
+	case replyTypeSimpleString, replyTypeInteger, replyTypeArray:
 		// Simple string or integer
 		s, r.err = readUntilNewline(r.conn.rd)
 		if r.err != nil {
-			return 0, r.err
+			return 0, typ, r.err
 		}
 
 		isNewArray := typ == '*'
@@ -251,10 +267,9 @@ func (r *Result) writeTo(w io.Writer) (int64, error) {
 			// New array
 			n, err := strconv.Atoi(string(s))
 			if err != nil {
-				return 0, fmt.Errorf("invalid array length %q", s)
+				return 0, typ, fmt.Errorf("invalid array length %q", s)
 			}
 			r.arrayStack = append(r.arrayStack, n)
-			return 0, nil
 		}
 
 		var n int
@@ -262,26 +277,26 @@ func (r *Result) writeTo(w io.Writer) (int64, error) {
 		if !isNewArray {
 			incrRead()
 		}
-		return int64(n), r.err
-	case '$':
+		return int64(n), typ, r.err
+	case replyTypeBulkString:
 		// Bulk string
 		var n int
 		n, r.err = readBulkString(r.conn, r.conn.rd, w)
 		incrRead()
-		return int64(n), r.err
-	case '-':
+		return int64(n), typ, r.err
+	case replyTypeError:
 		// Error
 		s, r.err = readUntilNewline(r.conn.rd)
 		if r.err != nil {
-			return 0, r.err
+			return 0, typ, r.err
 		}
 		incrRead()
-		return 0, &Error{
+		return 0, typ, &Error{
 			raw: string(s),
 		}
 	default:
 		r.err = fmt.Errorf("unknown type %q", typ)
-		return 0, r.err
+		return 0, typ, r.err
 	}
 }
 
@@ -312,6 +327,40 @@ func (r *Result) Int() (int, error) {
 		return 0, err
 	}
 	return strconv.Atoi(s)
+}
+
+// ArrayLength reads the next message as an array length.
+// It does not close the Result even if CloseOnRead is true.
+func (r *Result) ArrayLength() (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	var buf bytes.Buffer
+	_, typ, err := r.writeTo(&buf)
+	if err != nil {
+		return 0, err
+	}
+
+	if typ != replyTypeArray {
+		return 0, fmt.Errorf("expected array, got %q", typ)
+	}
+
+	gotN, err := strconv.Atoi(buf.String())
+	if err != nil {
+		return 0, fmt.Errorf("invalid array length %q", buf.String())
+	}
+
+	// -1 is a nil array.
+	if gotN < 0 {
+		return gotN, nil
+	}
+
+	if r.arrayStack[len(r.arrayStack)-1] != gotN {
+		// This should be impossible.
+		return 0, fmt.Errorf("array stack mismatch (expected %d, got %d)", r.arrayStack[len(r.arrayStack)-1], gotN)
+	}
+
+	return gotN, nil
 }
 
 // Ok returns whether the result is "OK". Note that it may fail even if the
@@ -362,13 +411,13 @@ func (r *Result) Close() error {
 func (r *Result) close() error {
 	for r.next() {
 		// Read the result into discard so that the connection can be reused.
-		_, err := r.writeTo(io.Discard)
+		_, _, err := r.writeTo(io.Discard)
 		if errors.Is(err, errClosed) {
 			// Should be impossible to close a result without draining
 			// it, in which case at == end and we would never get here.
 			return fmt.Errorf("SEVERE: result closed while iterating")
 		} else if err != nil {
-			return err
+			return fmt.Errorf("drain: %w", err)
 		}
 	}
 
@@ -384,14 +433,4 @@ func (r *Result) close() error {
 		r.client.putConn(r.conn)
 	}
 	return nil
-}
-
-func (r *Result) Array() *ArrayResult {
-	return &ArrayResult{
-		Result: r,
-	}
-}
-
-type ArrayResult struct {
-	*Result
 }

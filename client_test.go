@@ -231,15 +231,21 @@ func TestClient_MGet(t *testing.T) {
 	_, client := startRedisServer(t)
 
 	ctx := context.Background()
-	err := client.Command(ctx, "SET", "foo", "bar").Ok()
+	err := client.Command(ctx, "MSET", "a", "antelope", "b", "bat", "c", "cat").Ok()
 	require.NoError(t, err)
 
-	err = client.Command(ctx, "SET", "baz", "qux").Ok()
+	cmd := client.Command(ctx, "MGET", "a", "b", "c")
+
+	n, err := cmd.ArrayLength()
+	require.NoError(t, err)
+	require.Equal(t, 3, n)
+
+	err = cmd.Close()
 	require.NoError(t, err)
 
-	got, err := client.Command(ctx, "MGET", "foo", "baz").Strings()
-	require.NoError(t, err)
-	require.Equal(t, []string{"bar", "qux"}, got)
+	got, err := client.Command(ctx, "MGET", "a", "b", "c").Strings()
+	require.NoError(t, err, "read %+v", got)
+	require.Equal(t, []string{"antelope", "bat", "cat"}, got)
 }
 
 func Benchmark_Get(b *testing.B) {
