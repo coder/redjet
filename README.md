@@ -25,7 +25,7 @@ Redis command. Instead, it offers a generic interface that supports [all command
 and options](https://redis.io/commands/). While this approach has less
 type-safety, it provides forward compatibility with new Redis features.
 
-In the aims of both performance and ease-of-use, redjet attempts to provide
+In the aim of both performance and ease-of-use, redjet attempts to provide
 an API that closely resembles the protocol. For example, the `Command` method
 is really a Pipeline of size 1.
 
