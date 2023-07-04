@@ -4,7 +4,7 @@ SHELL = /bin/bash
 .PHONY: test
 
 test:
-	go test $$pflag -timeout=3m -race . -coverprofile=coverage.out -covermode=atomic
+	go test -timeout=3m -race . -coverprofile=coverage.out -covermode=atomic
 
 send-cover:
 	go install github.com/mattn/goveralls@v0.0.12

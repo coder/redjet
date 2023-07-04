@@ -37,7 +37,7 @@ func startRedisServer(t testing.TB, args ...string) (string, *Client) {
 	socket := filepath.Join(t.TempDir(), "redis.sock")
 	serverCmd := exec.Command(
 		"redis-server", "--unixsocket", socket, "--loglevel", "debug",
-		"--bind", "",
+		"--port", "0",
 	)
 	serverCmd.Args = append(serverCmd.Args, args...)
 	serverCmd.Dir = t.TempDir()
@@ -104,6 +104,13 @@ func TestClient_SetGet(t *testing.T) {
 	got, err := client.Command(ctx, "GET", "foo").Bytes()
 	require.NoError(t, err)
 	require.Equal(t, []byte("bar"), got)
+
+	err = client.Command(ctx, "SET", "foo", []byte("bytebar")).Ok()
+	require.NoError(t, err)
+
+	got, err = client.Command(ctx, "GET", "foo").Bytes()
+	require.NoError(t, err)
+	require.Equal(t, []byte("bytebar"), got)
 }
 
 func TestClient_Race(t *testing.T) {
