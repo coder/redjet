@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -57,12 +58,21 @@ func startRedisServer(t testing.TB, args ...string) (string, *Client) {
 		serverCmd.Process.Kill()
 	})
 
+	var serverStarted int64
+
+	time.AfterFunc(5*time.Second, func() {
+		if atomic.LoadInt64(&serverStarted) == 0 {
+			t.Fatalf("redis-server failed to start")
+		}
+	})
+
 	// Redis will print out the socket path when it's ready to server.
 	sc := bufio.NewScanner(serverStdoutRd)
 	for sc.Scan() {
 		if !strings.Contains(sc.Text(), socket) {
 			continue
 		}
+		atomic.StoreInt64(&serverStarted, 1)
 		c := &Client{
 			ConnectionPoolSize: 10,
 			Dial: func(_ context.Context) (net.Conn, error) {
