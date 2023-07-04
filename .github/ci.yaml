@@ -1,0 +1,8 @@
+# action.yml
+name: ci
+on: [push]
+jobs:
+  test:
+    using: "docker"
+    image: "Dockerfile"
+    steps: make test
