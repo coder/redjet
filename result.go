@@ -161,15 +161,14 @@ func (r *Result) ArrayStack() []int {
 
 // Strings returns the array result as a slice of strings.
 func (r *Result) Strings() ([]string, error) {
-	// Sanity check that the ArrayStack matches the length.
-	if len(r.ArrayStack()) == 0 {
-		return nil, fmt.Errorf("not in an array")
-	}
-
 	// Read the array length.
 	n, err := r.Int()
 	if err != nil {
 		return nil, err
+	}
+
+	if len(r.ArrayStack()) == 0 {
+		return nil, fmt.Errorf("not in an array")
 	}
 
 	// Sanity check that the array length matches the value on the stack.
@@ -191,6 +190,8 @@ func (r *Result) Strings() ([]string, error) {
 // writeTo writes the result to w. The second return value is whether or not
 // the value indicates an array.
 func (r *Result) writeTo(w io.Writer) (int64, error) {
+	panic("TODO return the type so that other methods (like array detection) can be more elegantly implemented")
+
 	if err := r.checkClosed(); err != nil {
 		return 0, err
 	}
