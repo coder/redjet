@@ -213,6 +213,18 @@ func TestClient_LenReader(t *testing.T) {
 	got, err := client.Command(ctx, "GET", "foo").Bytes()
 	require.NoError(t, err)
 	require.Equal(t, []byte(v), got)
+
+	bigString := strings.Repeat("x", 1024)
+
+	err = client.Command(ctx, "SET", "foo", NewLenReader(
+		strings.NewReader(bigString),
+		16,
+	)).Ok()
+	require.NoError(t, err)
+
+	got, err = client.Command(ctx, "GET", "foo").Bytes()
+	require.NoError(t, err)
+	require.Equal(t, []byte(bigString)[:16], got)
 }
 
 func TestClient_BadCmd(t *testing.T) {
