@@ -159,7 +159,8 @@ Redjet provides automatic connection pooling. Configuration knobs exist
 within the `Client` struct that may be changed before any Commands are
 issued.
 
-If you want synchronous command executation over the same connection, use the `Pipeline` method and consume the Result after each call to `Pipeline`. Storing a long-lived `Result`
+If you want synchronous command execution over the same connection,
+use the `Pipeline` method and consume the Result after each call to `Pipeline`. Storing a long-lived `Result`
 offers the same functionality as storing a long-lived connection.
 
 # Benchmarks
