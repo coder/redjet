@@ -30,6 +30,11 @@ func IsUnknownCommand(err error) bool {
 	return errors.As(err, &e) && strings.HasPrefix(e.raw, "ERR unknown command")
 }
 
+func IsAuthError(err error) bool {
+	var e *Error
+	return errors.As(err, &e) && strings.HasPrefix(e.raw, "NOAUTH")
+}
+
 // pipeline contains state of a Redis pipeline.
 type pipeline struct {
 	at  int
@@ -431,6 +436,7 @@ func (r *Result) close() error {
 
 	if r.err == nil {
 		r.client.putConn(r.conn)
+		return nil
 	}
-	return nil
+	return r.conn.Close()
 }

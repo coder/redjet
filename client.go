@@ -24,6 +24,20 @@ type Client struct {
 	// Dial is the function used to create new connections.
 	Dial func(ctx context.Context) (net.Conn, error)
 
+	// AuthUsername is the username used for authentication.
+	//
+	// If set, AuthPassword must also be set. If not using Redis ACLs, just
+	// set AuthPassword.
+	//
+	// See more: https://redis.io/commands/auth/
+	AuthUsername string
+	// AuthPassword is the password used for authentication.
+	// Authentication must be set before any other commands are sent, and
+	// must not change during the lifetime of the client.
+	//
+	// See more: https://redis.io/commands/auth/
+	AuthPassword string
+
 	poolMu sync.Mutex
 	pool   *connPool
 }
@@ -57,11 +71,12 @@ func (c *Client) initPool() {
 	}
 }
 
-func (c *Client) getConn(ctx context.Context) (*conn, error) {
+// getConn gets a new conn, wrapped in a Result. The conn is already authenticated.
+func (c *Client) getConn(ctx context.Context) (*Result, error) {
 	c.initPool()
 
 	if conn, ok := c.pool.tryGet(ctx); ok {
-		return conn, nil
+		return c.newResult(conn), nil
 	}
 
 	nc, err := c.Dial(ctx)
@@ -69,12 +84,32 @@ func (c *Client) getConn(ctx context.Context) (*conn, error) {
 		return nil, fmt.Errorf("dial: %w", err)
 	}
 
-	return &conn{
+	conn := &conn{
 		Conn:     nc,
 		lastUsed: time.Now(),
 		wr:       bufio.NewWriter(nc),
 		rd:       bufio.NewReader(nc),
-	}, nil
+	}
+
+	r := c.newResult(conn)
+
+	if c.AuthUsername == "" && c.AuthPassword == "" {
+		return r, nil
+	}
+
+	if c.AuthUsername != "" && c.AuthPassword == "" {
+		nc.Close()
+		return nil, errors.New("auth username set but password not set")
+	}
+
+	if c.AuthUsername != "" {
+		r = c.Pipeline(ctx, r, "AUTH", c.AuthUsername, c.AuthPassword)
+	} else {
+		r = c.Pipeline(ctx, r, "AUTH", c.AuthPassword)
+	}
+	// The beauty of pipelining is that authentication doesn't add a round-trip.
+
+	return r, nil
 }
 
 func (c *Client) putConn(conn *conn) {
@@ -137,6 +172,14 @@ func writeBulkReader(w *bufio.Writer, rd LenReader) {
 	w.WriteString(crlf)
 }
 
+func (c *Client) newResult(conn *conn) *Result {
+	return &Result{
+		closeCh: make(chan struct{}),
+		conn:    conn,
+		client:  c,
+	}
+}
+
 // Pipeline sends a command to the server and returns the promise of a result.
 // r may be nil, as in the case of the first command in a pipeline. Each successive
 // call to Pipeline should re-use the last returned Result.
@@ -147,53 +190,16 @@ func writeBulkReader(w *bufio.Writer, rd LenReader) {
 // It is safe to keep a pipeline running for a long time, with many send and
 // receive cycles.
 func (c *Client) Pipeline(ctx context.Context, r *Result, cmd string, args ...any) *Result {
-	var (
-		conn *conn
-		err  error
-	)
+	var err error
 	if r == nil {
-		conn, err = c.getConn(ctx)
+		r, err = c.getConn(ctx)
 		if err != nil {
 			return &Result{
 				err: fmt.Errorf("get conn: %w", err),
 			}
 		}
-	} else {
-		conn = r.conn
-	}
 
-	// We're instructing redis that we're sending an array of the command
-	// and its arguments.
-	conn.wr.WriteString("*")
-	conn.wr.WriteString(strconv.Itoa(len(args) + 1))
-	conn.wr.WriteString(crlf)
-
-	writeBulkString(conn.wr, cmd)
-
-	for _, arg := range args {
-		switch arg := arg.(type) {
-		case string:
-			writeBulkString(conn.wr, arg)
-		case []byte:
-			writeBulkBytes(conn.wr, arg)
-		case LenReader:
-			writeBulkReader(conn.wr, arg)
-		default:
-			writeBulkString(conn.wr, fmt.Sprintf("%v", arg))
-		}
-	}
-
-	if r == nil {
-		r = &Result{
-			conn:    conn,
-			client:  c,
-			closeCh: make(chan struct{}),
-			pipeline: pipeline{
-				at:  0,
-				end: 1,
-			},
-			CloseOnRead: false,
-		}
+		// We must take great care that Close is eventually called on the result.
 		go func() {
 			select {
 			case <-ctx.Done():
@@ -201,9 +207,30 @@ func (c *Client) Pipeline(ctx context.Context, r *Result, cmd string, args ...an
 			case <-r.closeCh:
 			}
 		}()
-	} else {
-		r.pipeline.end++
 	}
+
+	// We're instructing redis that we're sending an array of the command
+	// and its arguments.
+	r.conn.wr.WriteString("*")
+	r.conn.wr.WriteString(strconv.Itoa(len(args) + 1))
+	r.conn.wr.WriteString(crlf)
+
+	writeBulkString(r.conn.wr, cmd)
+
+	for _, arg := range args {
+		switch arg := arg.(type) {
+		case string:
+			writeBulkString(r.conn.wr, arg)
+		case []byte:
+			writeBulkBytes(r.conn.wr, arg)
+		case LenReader:
+			writeBulkReader(r.conn.wr, arg)
+		default:
+			writeBulkString(r.conn.wr, fmt.Sprintf("%v", arg))
+		}
+	}
+
+	r.pipeline.end++
 	return r
 }
 

@@ -20,6 +20,11 @@ Unlike [redigo](https://github.com/gomodule/redigo) and [go-redis](https://githu
 Redis command. Instead, it offers a generic interface that supports [all commands
 and options](https://redis.io/commands/). While this approach has less
 type-safety, it provides forward compatibility with new Redis features.
+
+In the aims of both performance and ease-of-use, redjet attempts to provide
+an API that closely resembles the protocol. For example, the `Command` method
+is really a Pipeline of size 1.
+
 # Basic Usage
 
 For the most part, you can interact with Redis using a familiar interface:
@@ -106,6 +111,8 @@ for r.Next() {
 }
 ```
 
+Fun fact: authentication happens over a pipeline, so it doesn't incur a round-trip.
+
 # Benchmarks
 
 On a pure throughput basis, redjet will perform similarly to redigo and go-redis.
@@ -143,5 +150,8 @@ well-tested library like redigo or go-redis.
 
 # Limitations
 
-- redjet does not have tidy support for client side caching. But, you could
-  implement it yourself by following the instructions [here](https://redis.io/docs/manual/client-side-caching/#two-connections-mode).
+- redjet does not have tidy support for client side caching. But, the redjet API
+  is flexible enough that a client could implement it themselves by following the instructions [here](https://redis.io/docs/manual/client-side-caching/#two-connections-mode).
+- RESP3 is not supported. Practically, this means that connections aren't
+  multiplexed, and other Redis libraries may perform better in high-concurrency
+  scenarios.

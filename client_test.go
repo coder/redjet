@@ -32,12 +32,13 @@ func (w *testWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-func startRedisServer(t testing.TB) (string, *Client) {
+func startRedisServer(t testing.TB, args ...string) (string, *Client) {
 	socket := filepath.Join(t.TempDir(), "redis.sock")
 	serverCmd := exec.Command(
 		"redis-server", "--unixsocket", socket, "--loglevel", "debug",
 		"--bind", "",
 	)
+	serverCmd.Args = append(serverCmd.Args, args...)
 	serverCmd.Dir = t.TempDir()
 
 	serverStdoutRd, serverStdoutWr := io.Pipe()
@@ -246,6 +247,33 @@ func TestClient_MGet(t *testing.T) {
 	got, err := client.Command(ctx, "MGET", "a", "b", "c").Strings()
 	require.NoError(t, err, "read %+v", got)
 	require.Equal(t, []string{"antelope", "bat", "cat"}, got)
+}
+
+func TestClient_Auth(t *testing.T) {
+	t.Parallel()
+	const password = "hunt12"
+
+	t.Run("Fail", func(t *testing.T) {
+		t.Parallel()
+
+		_, client := startRedisServer(t, "--requirepass", password)
+		ctx := context.Background()
+
+		err := client.Command(ctx, "SET", "foo", "bar").Ok()
+		require.Error(t, err)
+		require.True(t, IsAuthError(err))
+	})
+
+	t.Run("Succeed", func(t *testing.T) {
+		t.Parallel()
+
+		_, client := startRedisServer(t, "--requirepass", password)
+		ctx := context.Background()
+		client.AuthPassword = password
+
+		err := client.Command(ctx, "SET", "foo", "bar").Ok()
+		require.NoError(t, err)
+	})
 }
 
 func Benchmark_Get(b *testing.B) {
