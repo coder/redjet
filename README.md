@@ -10,12 +10,13 @@ a low-allocation, streaming API.
 - [Streaming](#streaming)
 - [Pipelining](#pipelining)
 - [Benchmarks](#benchmarks)
+- [Limitations](#limitations)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 # Introduction
 
-Unlike redigo and go-redis, redjet does not provide a function for every
+Unlike [redigo](https://github.com/gomodule/redigo) and [go-redis](https://github.com/redis/go-redis), redjet does not provide a function for every
 Redis command. Instead, it offers a generic interface that supports [all commands
 and options](https://redis.io/commands/). While this approach has less
 type-safety, it provides forward compatibility with new Redis features.
@@ -87,7 +88,7 @@ want to avoid large allocations, you may chunk a stream into Redis using repeate
 
 # Pipelining
 
-`redjet` supports pipelining via the `Pipeline` method. This method accepts a Result, potentially that of a previous command.
+`redjet` supports [pipelining](https://redis.io/docs/manual/pipelining/) via the `Pipeline` method. This method accepts a Result, potentially that of a previous command.
 
 ```go
 // Set foo0, foo1, ..., foo99 to "bar", and confirm that each succeeded.
@@ -139,3 +140,8 @@ Note that they are a bit contrived in that they Get a 1MB object. The performanc
 of all libraries converge as response size decreases. If you don't
 need the performance this library offers, you should probably use a more
 well-tested library like redigo or go-redis.
+
+# Limitations
+
+- redjet does not have tidy support for client side caching. But, you could
+  implement it yourself by following the instructions [here](https://redis.io/docs/manual/client-side-caching/#two-connections-mode).

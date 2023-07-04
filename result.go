@@ -56,6 +56,10 @@ type Result struct {
 	// It is set to True when the result is returned from Command, and
 	// False when it is returned from Pipeline.
 	CloseOnRead bool
+
+	// arrayStack tracks the depth of the array processing. E.g. if we're one
+	// level deep with 3 elements remaining, arrayStack will be [3].
+	arrayStack []int
 }
 
 func (r *Result) Error() string {
@@ -125,7 +129,7 @@ func (r *Result) checkClosed() error {
 
 var _ io.WriterTo = (*Result)(nil)
 
-// WriteTo returns the result as a byte slice.
+// WriteTo writes the result to w.
 //
 // Refer to r.CloseOnRead for whether the result is closed after the first read.
 func (r *Result) WriteTo(w io.Writer) (int64, error) {
@@ -138,9 +142,25 @@ func (r *Result) WriteTo(w io.Writer) (int64, error) {
 		}
 	}()
 
-	return r.writeTo(w)
+	ww, isArray, err := r.writeTo(w)
+	if err != nil {
+		return ww, err
+	}
+	return ww, nil
 }
 
+// ArrayStack returns the position of the result within an array.
+//
+// The returned slice must not be modified.
+func (r *Result) Array() []int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return r.arrayStack
+}
+
+// writeTo writes the result to w. The second return value is whether or not
+// the value indicates an array.
 func (r *Result) writeTo(w io.Writer) (int64, error) {
 	if err := r.checkClosed(); err != nil {
 		return 0, err
@@ -150,7 +170,7 @@ func (r *Result) writeTo(w io.Writer) (int64, error) {
 		return 0, r.err
 	}
 
-	if r.pipeline.at == r.pipeline.end {
+	if r.pipeline.at == r.pipeline.end && len(r.arrayStack) == 0 {
 		return 0, fmt.Errorf("no more results")
 	}
 
@@ -171,18 +191,53 @@ func (r *Result) writeTo(w io.Writer) (int64, error) {
 		return 0, r.err
 	}
 
+	// incrRead is how we advance the read state machine.
+	incrRead := func() {
+		// If we're in an array, we're not making progress on the pipeline,
+		// we're just reading the array elements.
+		if len(r.arrayStack) > 0 {
+			i := len(r.arrayStack) - 1
+			r.arrayStack[i]--
+			if r.arrayStack[i] == 0 {
+				r.arrayStack = r.arrayStack[:i]
+			}
+		} else {
+			r.pipeline.at++
+		}
+	}
+
 	var s []byte
 
 	switch typ {
-	case '+', ':':
+	case '+', ':', '*':
 		// Simple string or integer
 		s, r.err = readUntilNewline(r.conn.rd)
 		if r.err != nil {
 			return 0, r.err
 		}
+
+		isNewArray := typ == '*'
+		if isNewArray {
+			// New array
+			n, err := strconv.Atoi(string(s))
+			if err != nil {
+				return 0, fmt.Errorf("invalid array length %q", s)
+			}
+			r.arrayStack = append(r.arrayStack, n)
+			return 0, nil
+		}
+
 		var n int
 		n, r.err = w.Write(s)
-		r.pipeline.at++
+		if !isNewArray {
+			incrRead()
+		}
+		return int64(n), r.err
+	case '$':
+		// Bulk string
+		var n int
+		n, r.err = readBulkString(r.conn, r.conn.rd, w)
+		incrRead()
 		return int64(n), r.err
 	case '-':
 		// Error
@@ -190,20 +245,13 @@ func (r *Result) writeTo(w io.Writer) (int64, error) {
 		if r.err != nil {
 			return 0, r.err
 		}
-		r.pipeline.at++
+		incrRead()
 		return 0, &Error{
 			raw: string(s),
 		}
-	case '$':
-		// Bulk string
-		var n int
-		n, r.err = readBulkString(r.conn, r.conn.rd, w)
-		r.pipeline.at++
-		return int64(n), r.err
-	case '*':
-		return 0, fmt.Errorf("unexpected array response")
 	default:
-		return 0, fmt.Errorf("unknown type %q", typ)
+		r.err = fmt.Errorf("unknown type %q", typ)
+		return 0, r.err
 	}
 }
 
@@ -259,11 +307,16 @@ func (r *Result) Next() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	return r.next()
+}
+
+// next returns true if there are more results to read.
+func (r *Result) next() bool {
 	if r.err != nil {
 		return false
 	}
 
-	return r.pipeline.at < r.pipeline.end
+	return r.pipeline.at < r.pipeline.end || len(r.arrayStack) > 0
 }
 
 // Close releases all resources associated with the result.
@@ -277,13 +330,13 @@ func (r *Result) Close() error {
 }
 
 func (r *Result) close() error {
-	for i := r.pipeline.at; i < r.pipeline.end; i++ {
+	for r.next() {
 		// Read the result into discard so that the connection can be reused.
-		_, err := r.writeTo(io.Discard)
+		_, _, err := r.writeTo(io.Discard)
 		if errors.Is(err, errClosed) {
 			// Should be impossible to close a result without draining
 			// it, in which case at == end and we would never get here.
-			panic("result closed while iterating")
+			return fmt.Errorf("SEVERE: result closed while iterating")
 		} else if err != nil {
 			return err
 		}
@@ -301,4 +354,14 @@ func (r *Result) close() error {
 		r.client.putConn(r.conn)
 	}
 	return nil
+}
+
+func (r *Result) Array() *ArrayResult {
+	return &ArrayResult{
+		Result: r,
+	}
+}
+
+type ArrayResult struct {
+	*Result
 }
