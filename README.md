@@ -28,6 +28,12 @@ is really a Pipeline of size 1.
 
 # Basic Usage
 
+Install:
+
+```bash
+go get github.com/ammario/redjet@latest
+```
+
 For the most part, you can interact with Redis using a familiar interface:
 
 ```go
