@@ -1,4 +1,4 @@
-# Redjet
+# redjet
 [![Go Reference](https://pkg.go.dev/badge/github.com/ammario/redjet.svg)](https://pkg.go.dev/github.com/ammario/redjet)
 ![ci](https://github.com/ammario/redjet/actions/workflows/ci.yaml/badge.svg)
 [![Coverage Status](https://coveralls.io/repos/github/ammario/redjet/badge.svg)](https://coveralls.io/github/ammario/redjet)
@@ -22,7 +22,7 @@ is really a Pipeline of size 1.
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
 
-- [Redjet](#redjet)
+- [redjet](#redjet)
   - [Basic Usage](#basic-usage)
   - [Streaming](#streaming)
   - [Pipelining](#pipelining)
@@ -197,10 +197,8 @@ pkg: github.com/ammario/redjet/bench
 ```
 
 
-Note that they are a bit contrived in that they Get a 1MB object. The performance
-of all libraries converge as response size decreases. If you don't
-need the performance this library offers, you should probably use a more
-well-tested library like redigo or go-redis.
+Note that these results are a bit contrived in that they GET a 1MB value. The performance
+of all libraries converge as response size decreases.
 
 ## Limitations
 
@@ -209,6 +207,6 @@ well-tested library like redigo or go-redis.
 - RESP3 is not supported. Practically, this means that connections aren't
   multiplexed, and other Redis libraries may perform better in high-concurrency
   scenarios.
-- Certain features have not been tested yet but may work:
+- Certain features have not been tested but may still work:
   - Redis Streams
   - Monitor
