@@ -1,18 +1,18 @@
 goos: darwin
 goarch: arm64
 pkg: github.com/ammario/redjet/bench
-         │ /tmp/GoRedis.bench.out │     /tmp/Redigo.bench.out     │       /tmp/Redjet.bench.out        │
-         │         sec/op         │   sec/op     vs base          │   sec/op     vs base               │
-Redis-10              1.379m ± 4%   1.374m ± 1%  ~ (p=0.353 n=10)   1.287m ± 4%  -6.72% (p=0.000 n=10)
+ │   Redjet    │               Redigo                │              GoRedis               │
+ │   sec/op    │   sec/op     vs base                │   sec/op     vs base               │
+   1.283m ± 5%   1.469m ± 6%  +14.49% (p=0.000 n=10)   1.376m ± 6%  +7.23% (p=0.015 n=10)
 
-         │ /tmp/GoRedis.bench.out │     /tmp/Redigo.bench.out      │        /tmp/Redjet.bench.out        │
-         │          B/s           │     B/s       vs base          │     B/s       vs base               │
-Redis-10             724.9Mi ± 4%   727.7Mi ± 1%  ~ (p=0.353 n=10)   777.2Mi ± 4%  +7.21% (p=0.000 n=10)
+ │    Redjet    │                Redigo                │               GoRedis               │
+ │     B/s      │     B/s       vs base                │     B/s       vs base               │
+   779.4Mi ± 4%   680.8Mi ± 6%  -12.65% (p=0.000 n=10)   726.9Mi ± 6%  -6.74% (p=0.015 n=10)
 
-         │ /tmp/GoRedis.bench.out │         /tmp/Redigo.bench.out          │        /tmp/Redjet.bench.out        │
-         │          B/op          │      B/op        vs base               │    B/op      vs base                │
-Redis-10          1057013.50 ± 0%   1047441.50 ± 0%  -0.91% (p=0.000 n=10)   66.00 ± 12%  -99.99% (p=0.000 n=10)
+ │   Redjet   │                    Redigo                    │                   GoRedis                    │
+ │    B/op    │      B/op        vs base                     │      B/op        vs base                     │
+   66.00 ± 2%   1047455.00 ± 0%  +1586953.03% (p=0.000 n=10)   1057011.00 ± 0%  +1601431.82% (p=0.000 n=10)
 
-         │ /tmp/GoRedis.bench.out │        /tmp/Redigo.bench.out        │       /tmp/Redjet.bench.out        │
-         │       allocs/op        │  allocs/op   vs base                │ allocs/op   vs base                │
-Redis-10               6.000 ± 0%   2.000 ± 50%  -66.67% (p=0.000 n=10)   4.000 ± 0%  -33.33% (p=0.000 n=10)
+ │   Redjet   │               Redigo                │              GoRedis               │
+ │ allocs/op  │  allocs/op   vs base                │ allocs/op   vs base                │
+   4.000 ± 0%   2.500 ± 20%  -37.50% (p=0.000 n=10)   6.000 ± 0%  +50.00% (p=0.000 n=10)

@@ -179,23 +179,22 @@ Here are some benchmarks (reproducible via `make gen-bench`) to illustrate:
 goos: darwin
 goarch: arm64
 pkg: github.com/ammario/redjet/bench
- │   Redjet    │               Redigo               │              GoRedis               │
- │   sec/op    │   sec/op     vs base               │   sec/op     vs base               │
-   1.287m ± 4%   1.374m ± 1%  +6.81% (p=0.000 n=10)   1.379m ± 4%  +7.21% (p=0.000 n=10)
+ │   Redjet    │               Redigo                │              GoRedis               │
+ │   sec/op    │   sec/op     vs base                │   sec/op     vs base               │
+   1.283m ± 5%   1.469m ± 6%  +14.49% (p=0.000 n=10)   1.376m ± 6%  +7.23% (p=0.015 n=10)
 
- │    Redjet    │               Redigo                │               GoRedis               │
- │     B/s      │     B/s       vs base               │     B/s       vs base               │
-   777.2Mi ± 4%   727.7Mi ± 1%  -6.37% (p=0.000 n=10)   724.9Mi ± 4%  -6.72% (p=0.000 n=10)
+ │    Redjet    │                Redigo                │               GoRedis               │
+ │     B/s      │     B/s       vs base                │     B/s       vs base               │
+   779.4Mi ± 4%   680.8Mi ± 6%  -12.65% (p=0.000 n=10)   726.9Mi ± 6%  -6.74% (p=0.015 n=10)
 
- │   Redjet    │                    Redigo                    │                   GoRedis                    │
- │    B/op     │      B/op        vs base                     │      B/op        vs base                     │
-   66.00 ± 12%   1047441.50 ± 0%  +1586932.58% (p=0.000 n=10)   1057013.50 ± 0%  +1601435.61% (p=0.000 n=10)
+ │   Redjet   │                    Redigo                    │                   GoRedis                    │
+ │    B/op    │      B/op        vs base                     │      B/op        vs base                     │
+   66.00 ± 2%   1047455.00 ± 0%  +1586953.03% (p=0.000 n=10)   1057011.00 ± 0%  +1601431.82% (p=0.000 n=10)
 
  │   Redjet   │               Redigo                │              GoRedis               │
  │ allocs/op  │  allocs/op   vs base                │ allocs/op   vs base                │
-   4.000 ± 0%   2.000 ± 50%  -50.00% (p=0.000 n=10)   6.000 ± 0%  +50.00% (p=0.000 n=10)
+   4.000 ± 0%   2.500 ± 20%  -37.50% (p=0.000 n=10)   6.000 ± 0%  +50.00% (p=0.000 n=10)
 ```
-
 
 Note that these results are a bit contrived in that they GET a 1MB value. The performance
 of all libraries converge as response size decreases.

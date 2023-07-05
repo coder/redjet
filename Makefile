@@ -31,4 +31,4 @@ gen-bench:
 			/tmp/$$lib.bench.out
 		echo "Finished benchmarking $$lib";
 	done
-	benchstat -table .config -row=unit -col .file Redjet=/tmp/Redjet.bench.out Redigo=/tmp/Redigo.bench.out GoRedis=/tmp/GoRedis.bench.out > benchstat.txt
+	benchstat -table .config -row=unit -col .file redjet=/tmp/Redjet.bench.out redigo=/tmp/Redigo.bench.out go-redis=/tmp/GoRedis.bench.out > benchstat.txt
