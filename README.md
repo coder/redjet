@@ -70,7 +70,7 @@ func main() {
 ## Streaming
 
 To minimize allocations, call `(*Result).WriteTo` instead of `(*Result).Bytes`.
-`WriteTo` stream the response directly to an `io.Writer` such as a file or HTTP response.
+`WriteTo` streams the response directly to an `io.Writer` such as a file or HTTP response.
 
 For example:
 
@@ -80,7 +80,7 @@ _, err := client.Command(ctx, "GET", "big-object").WriteTo(os.Stdout)
 ```
 
 Similarly, you can pass in a value that implements `redjet.LenReader` to
-`Command` to stream larger readers into Redis. Unfortunately, the API
+`Command` to stream larger values into Redis. Unfortunately, the API
 cannot accept a regular `io.Reader` because bulk string messages in
 the Redis protocol are length-prefixed.
 
