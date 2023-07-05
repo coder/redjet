@@ -26,7 +26,8 @@ gen-bench:
 	libs=(GoRedis Redigo Redjet);
 	for lib in $${libs[@]}; do
 		# We need to standardize the names so that benchstat can compare them
-		go test -bench=$$lib -count=10 -timeout=60s -run=$$lib | \
+		go test -bench=$$lib -count=10 -timeout=60s -run=$$lib \
+		-memprofile=/tmp/$$lib.mem.out -cpuprofile=/tmp/$$lib.cpu.out | \
 			sed "s/$$lib/Redis/g" > \
 			/tmp/$$lib.bench.out
 		echo "Finished benchmarking $$lib";

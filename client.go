@@ -90,6 +90,7 @@ func (c *Client) getConn(ctx context.Context) (*Result, error) {
 		lastUsed: time.Now(),
 		wr:       bufio.NewWriter(nc),
 		rd:       bufio.NewReader(nc),
+		miscBuf:  make([]byte, 32*1024),
 	}
 
 	r := c.newResult(conn)

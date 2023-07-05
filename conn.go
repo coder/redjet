@@ -11,8 +11,10 @@ import (
 
 type conn struct {
 	net.Conn
-	wr       *bufio.Writer
-	rd       *bufio.Reader
+	wr *bufio.Writer
+	rd *bufio.Reader
+	// miscBuf is used when bufio abstractions get in the way.
+	miscBuf  []byte
 	lastUsed time.Time
 }
 

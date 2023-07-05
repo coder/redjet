@@ -103,38 +103,63 @@ var (
 	_ grower = (*strings.Builder)(nil)
 )
 
-func readBulkString(c net.Conn, rd *bufio.Reader, w io.Writer) (int, error) {
+type limitWriter struct {
+	w io.Writer
+	n int
+}
+
+func (w *limitWriter) Write(b []byte) (int, error) {
+	if len(b) > w.n {
+		b = b[:w.n]
+	}
+	if len(b) == 0 {
+		return 0, nil
+	}
+	n, err := w.w.Write(b)
+	if err != nil {
+		return n, err
+	}
+	w.n -= n
+	return n, nil
+}
+
+func readBulkString(c net.Conn, rd *bufio.Reader, buf []byte, w io.Writer) (int, error) {
 	c.SetReadDeadline(time.Now().Add(time.Second * 5))
 	b, err := rd.ReadBytes('\n')
 	if err != nil {
 		return 0, err
 	}
 
-	n, err := strconv.Atoi(string(b[:len(b)-2]))
+	stringSize, err := strconv.Atoi(string(b[:len(b)-2]))
 	if err != nil {
 		return 0, err
 	}
 
 	// n == -1 signals a nil value.
-	if n <= 0 {
+	if stringSize <= 0 {
 		return 0, nil
 	}
 
 	if g, ok := w.(grower); ok {
-		g.Grow(n)
+		g.Grow(stringSize)
 	}
 
 	// Give about a second per byte.
 	c.SetReadDeadline(time.Now().Add(
-		time.Second*5 + (time.Duration(n) * time.Second),
+		time.Second*5 + (time.Duration(stringSize) * time.Second),
 	))
 
-	var nn int64
-	// CopyN should not allocate because rd is a bufio.Reader and implements
-	// WriteTo.
-	if nn, err = io.CopyN(w, rd, int64(n)); err != nil {
+	// io.CopyN will allocate a buffer of size N when N is small, so we
+	// replace the behavior here.
+
+	nn, err := io.CopyBuffer(w, &io.LimitedReader{
+		R: rd,
+		N: int64(stringSize),
+	}, buf)
+	if err != nil {
 		return int(nn), err
 	}
+
 	// Discard CRLF
 	if _, err := rd.Discard(2); err != nil {
 		return int(nn), err
@@ -310,7 +335,7 @@ func (r *Result) writeTo(w io.Writer) (int64, replyType, error) {
 	case replyTypeBulkString:
 		// Bulk string
 		var n int
-		n, r.err = readBulkString(r.conn, r.conn.rd, w)
+		n, r.err = readBulkString(r.conn, r.conn.rd, r.conn.miscBuf, w)
 		incrRead()
 		return int64(n), typ, r.err
 	case replyTypeError:
