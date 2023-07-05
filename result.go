@@ -84,13 +84,21 @@ func (r *Result) Error() string {
 	return r.err.Error()
 }
 
-func readUntilNewline(rd *bufio.Reader) ([]byte, error) {
-	// Simple strings are typically small enough that we can don't care about the allocation.
-	b, err := rd.ReadBytes('\n')
-	if err != nil {
-		return nil, err
+// readUntilNewline reads until a newline, returning the bytes without the newline.
+// the returned bytes are built on top of buf.
+func readUntilNewline(rd *bufio.Reader, buf []byte) ([]byte, error) {
+	buf = buf[:0]
+	for {
+		b, err := rd.ReadByte()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, b)
+		if b == '\n' {
+			break
+		}
 	}
-	return b[:len(b)-2], nil
+	return buf[:len(buf)-2], nil
 }
 
 // grower represents memory-buffer types that can grow to a given size.
@@ -103,34 +111,16 @@ var (
 	_ grower = (*strings.Builder)(nil)
 )
 
-type limitWriter struct {
-	w io.Writer
-	n int
-}
-
-func (w *limitWriter) Write(b []byte) (int, error) {
-	if len(b) > w.n {
-		b = b[:w.n]
-	}
-	if len(b) == 0 {
-		return 0, nil
-	}
-	n, err := w.w.Write(b)
-	if err != nil {
-		return n, err
-	}
-	w.n -= n
-	return n, nil
-}
-
-func readBulkString(c net.Conn, rd *bufio.Reader, buf []byte, w io.Writer) (int, error) {
+func readBulkString(w io.Writer, c net.Conn, rd *bufio.Reader, copyBuf []byte) (int, error) {
+	// We should read the length fast.
 	c.SetReadDeadline(time.Now().Add(time.Second * 5))
-	b, err := rd.ReadBytes('\n')
+
+	newlineBuf, err := readUntilNewline(rd, copyBuf)
 	if err != nil {
 		return 0, err
 	}
 
-	stringSize, err := strconv.Atoi(string(b[:len(b)-2]))
+	stringSize, err := strconv.Atoi(string(newlineBuf))
 	if err != nil {
 		return 0, err
 	}
@@ -152,12 +142,29 @@ func readBulkString(c net.Conn, rd *bufio.Reader, buf []byte, w io.Writer) (int,
 	// io.CopyN will allocate a buffer of size N when N is small, so we
 	// replace the behavior here.
 
-	nn, err := io.CopyBuffer(w, &io.LimitedReader{
-		R: rd,
-		N: int64(stringSize),
-	}, buf)
-	if err != nil {
-		return int(nn), err
+	var nn int64
+	if stringSize > len(copyBuf) {
+		nn, err = io.CopyBuffer(w, &io.LimitedReader{
+			R: rd,
+			N: int64(stringSize),
+		}, copyBuf)
+		if err != nil {
+			return int(nn), err
+		}
+	} else {
+		// Fast-path for small strings.
+		// This avoids allocating a LimitReader.
+		buf := copyBuf[:stringSize]
+		n, err := io.ReadFull(rd, buf)
+		if err != nil {
+			return n, err
+		}
+
+		n, err = w.Write(buf)
+		if err != nil {
+			return n, err
+		}
+		nn = int64(n)
 	}
 
 	// Discard CRLF
@@ -311,7 +318,7 @@ func (r *Result) writeTo(w io.Writer) (int64, replyType, error) {
 	switch typ {
 	case replyTypeSimpleString, replyTypeInteger, replyTypeArray:
 		// Simple string or integer
-		s, r.err = readUntilNewline(r.conn.rd)
+		s, r.err = readUntilNewline(r.conn.rd, r.conn.miscBuf)
 		if r.err != nil {
 			return 0, typ, r.err
 		}
@@ -335,12 +342,12 @@ func (r *Result) writeTo(w io.Writer) (int64, replyType, error) {
 	case replyTypeBulkString:
 		// Bulk string
 		var n int
-		n, r.err = readBulkString(r.conn, r.conn.rd, r.conn.miscBuf, w)
+		n, r.err = readBulkString(w, r.conn, r.conn.rd, r.conn.miscBuf)
 		incrRead()
 		return int64(n), typ, r.err
 	case replyTypeError:
 		// Error
-		s, r.err = readUntilNewline(r.conn.rd)
+		s, r.err = readUntilNewline(r.conn.rd, r.conn.miscBuf)
 		if r.err != nil {
 			return 0, typ, r.err
 		}

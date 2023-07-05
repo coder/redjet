@@ -428,11 +428,15 @@ func Benchmark_Get(b *testing.B) {
 				batchSize = 100
 			)
 			var r *Result
+			// We avoid assert/require in the hot path since it meaningfully
+			// affects the benchmark.
 			get := func() {
 				for r.Next() {
 					n, err := r.WriteTo(io.Discard)
 					require.NoError(b, err)
-					require.EqualValues(b, len(payload), n)
+					if n != int64(len(payload)) {
+						b.Fatalf("expected %d bytes, got %d", len(payload), n)
+					}
 				}
 			}
 			for i := 0; i < b.N; i++ {
@@ -445,7 +449,6 @@ func Benchmark_Get(b *testing.B) {
 			err = r.Close()
 			require.NoError(b, err)
 			b.StopTimer()
-			time.Sleep(100 * time.Millisecond)
 		})
 	}
 }

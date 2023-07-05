@@ -1,18 +1,18 @@
 goos: darwin
 goarch: arm64
 pkg: github.com/ammario/redjet/bench
- │    redjet    │            redigo             │           go-redis            │
- │    sec/op    │   sec/op     vs base          │   sec/op     vs base          │
-   1.346m ± 15%   1.352m ± 3%  ~ (p=0.684 n=10)   1.422m ± 4%  ~ (p=0.143 n=10)
+ │    redjet    │             redigo             │               go-redis               │
+ │    sec/op    │    sec/op     vs base          │    sec/op     vs base                │
+   1.296m ± 10%   1.401m ± 10%  ~ (p=0.075 n=10)   1.519m ± 14%  +17.21% (p=0.000 n=10)
 
- │    redjet     │             redigo             │            go-redis            │
- │      B/s      │     B/s       vs base          │     B/s       vs base          │
-   743.3Mi ± 13%   739.8Mi ± 3%  ~ (p=0.684 n=10)   703.3Mi ± 4%  ~ (p=0.143 n=10)
+ │    redjet    │             redigo              │               go-redis                │
+ │     B/s      │      B/s       vs base          │      B/s       vs base                │
+   771.8Mi ± 9%   715.9Mi ± 10%  ~ (p=0.075 n=10)   658.6Mi ± 12%  -14.67% (p=0.000 n=10)
 
  │   redjet   │                    redigo                    │                   go-redis                   │
  │    B/op    │      B/op        vs base                     │      B/op        vs base                     │
-   66.00 ± 3%   1047456.50 ± 0%  +1586955.30% (p=0.000 n=10)   1057010.00 ± 0%  +1601430.30% (p=0.000 n=10)
+   49.50 ± 9%   1047456.50 ± 0%  +2115973.74% (p=0.000 n=10)   1056983.50 ± 0%  +2135220.20% (p=0.000 n=10)
 
- │   redjet   │               redigo               │              go-redis              │
- │ allocs/op  │ allocs/op   vs base                │ allocs/op   vs base                │
-   4.000 ± 0%   3.000 ± 0%  -25.00% (p=0.000 n=10)   6.000 ± 0%  +50.00% (p=0.000 n=10)
+ │   redjet   │            redigo            │              go-redis               │
+ │ allocs/op  │ allocs/op   vs base          │ allocs/op   vs base                 │
+   3.000 ± 0%   3.000 ± 0%  ~ (p=1.000 n=10)   6.000 ± 0%  +100.00% (p=0.000 n=10)
