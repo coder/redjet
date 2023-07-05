@@ -2,6 +2,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/ammario/redjet.svg)](https://pkg.go.dev/github.com/ammario/redjet)
 ![ci](https://github.com/ammario/redjet/actions/workflows/ci.yaml/badge.svg)
 [![Coverage Status](https://coveralls.io/repos/github/ammario/redjet/badge.svg)](https://coveralls.io/github/ammario/redjet)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ammario/redjet)](https://goreportcard.com/report/github.com/ammario/redjet)
 
 
 
