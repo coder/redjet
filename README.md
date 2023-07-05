@@ -179,21 +179,21 @@ Here are some benchmarks (reproducible via `make gen-bench`) to illustrate:
 goos: darwin
 goarch: arm64
 pkg: github.com/ammario/redjet/bench
- │   Redjet    │               Redigo                │              GoRedis               │
- │   sec/op    │   sec/op     vs base                │   sec/op     vs base               │
-   1.283m ± 5%   1.469m ± 6%  +14.49% (p=0.000 n=10)   1.376m ± 6%  +7.23% (p=0.015 n=10)
+ │    redjet    │             redigo             │               go-redis               │
+ │    sec/op    │    sec/op     vs base          │    sec/op     vs base                │
+   1.296m ± 10%   1.401m ± 10%  ~ (p=0.075 n=10)   1.519m ± 14%  +17.21% (p=0.000 n=10)
 
- │    Redjet    │                Redigo                │               GoRedis               │
- │     B/s      │     B/s       vs base                │     B/s       vs base               │
-   779.4Mi ± 4%   680.8Mi ± 6%  -12.65% (p=0.000 n=10)   726.9Mi ± 6%  -6.74% (p=0.015 n=10)
+ │    redjet    │             redigo              │               go-redis                │
+ │     B/s      │      B/s       vs base          │      B/s       vs base                │
+   771.8Mi ± 9%   715.9Mi ± 10%  ~ (p=0.075 n=10)   658.6Mi ± 12%  -14.67% (p=0.000 n=10)
 
- │   Redjet   │                    Redigo                    │                   GoRedis                    │
+ │   redjet   │                    redigo                    │                   go-redis                   │
  │    B/op    │      B/op        vs base                     │      B/op        vs base                     │
-   66.00 ± 2%   1047455.00 ± 0%  +1586953.03% (p=0.000 n=10)   1057011.00 ± 0%  +1601431.82% (p=0.000 n=10)
+   49.50 ± 9%   1047456.50 ± 0%  +2115973.74% (p=0.000 n=10)   1056983.50 ± 0%  +2135220.20% (p=0.000 n=10)
 
- │   Redjet   │               Redigo                │              GoRedis               │
- │ allocs/op  │  allocs/op   vs base                │ allocs/op   vs base                │
-   4.000 ± 0%   2.500 ± 20%  -37.50% (p=0.000 n=10)   6.000 ± 0%  +50.00% (p=0.000 n=10)
+ │   redjet   │            redigo            │              go-redis               │
+ │ allocs/op  │ allocs/op   vs base          │ allocs/op   vs base                 │
+   3.000 ± 0%   3.000 ± 0%  ~ (p=1.000 n=10)   6.000 ± 0%  +100.00% (p=0.000 n=10)
 ```
 
 Note that these results are a bit contrived in that they GET a 1MB value. The performance
