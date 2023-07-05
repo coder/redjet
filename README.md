@@ -201,7 +201,7 @@ of all libraries converge as response size decreases.
 
 ## Limitations
 
-- redjet does not have tidy support for client side caching. But, the redjet API
+- redjet does not have convenient support for client side caching. But, the redjet API
   is flexible enough that a client could implement it themselves by following the instructions [here](https://redis.io/docs/manual/client-side-caching/#two-connections-mode).
 - RESP3 is not supported. Practically, this means that connections aren't
   multiplexed, and other Redis libraries may perform better in high-concurrency
