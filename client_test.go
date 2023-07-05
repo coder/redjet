@@ -315,8 +315,14 @@ func TestClient_Auth(t *testing.T) {
 		ctx := context.Background()
 		client.AuthPassword = password
 
-		err := client.Command(ctx, "SET", "foo", "bar").Ok()
+		// It's imperative to test both SET and GET because the response
+		// of SET matches the response of AUTH.
+		err := client.Command(ctx, "SET", "foo", "flamingo").Ok()
 		require.NoError(t, err)
+
+		got, err := client.Command(ctx, "GET", "foo").Bytes()
+		require.NoError(t, err)
+		require.Equal(t, []byte("flamingo"), got)
 	})
 }
 
