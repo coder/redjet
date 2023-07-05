@@ -93,6 +93,16 @@ func readUntilNewline(rd *bufio.Reader) ([]byte, error) {
 	return b[:len(b)-2], nil
 }
 
+// grower represents memory-buffer types that can grow to a given size.
+type grower interface {
+	Grow(int)
+}
+
+var (
+	_ grower = (*bytes.Buffer)(nil)
+	_ grower = (*strings.Builder)(nil)
+)
+
 func readBulkString(c net.Conn, rd *bufio.Reader, w io.Writer) (int, error) {
 	c.SetReadDeadline(time.Now().Add(time.Second * 5))
 	b, err := rd.ReadBytes('\n')
@@ -108,6 +118,10 @@ func readBulkString(c net.Conn, rd *bufio.Reader, w io.Writer) (int, error) {
 	// n == -1 signals a nil value.
 	if n <= 0 {
 		return 0, nil
+	}
+
+	if g, ok := w.(grower); ok {
+		g.Grow(n)
 	}
 
 	// Give about a second per byte.
