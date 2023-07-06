@@ -281,12 +281,6 @@ func (r *Result) writeTo(w io.Writer) (int64, replyType, error) {
 		return 0, 0, r.err
 	}
 
-	if !r.subscribeMode {
-		// The type byte should come fast since its so small. A timeout here implies
-		// a protocol error.
-		r.conn.SetDeadline(time.Now().Add(time.Second * 5))
-	}
-
 	var typByte byte
 	typByte, r.err = r.conn.rd.ReadByte()
 	if r.err != nil {
