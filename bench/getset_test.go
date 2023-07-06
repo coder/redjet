@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"flag"
 	"io"
 	"net"
 	"os/exec"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/ammario/redjet"
+	"github.com/dustin/go-humanize"
 	redigo "github.com/gomodule/redigo/redis"
 	goredis "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
@@ -67,79 +69,76 @@ func startRedisServer(t testing.TB) string {
 	panic("unreachable")
 }
 
-var big = strings.Repeat("x", 1024*1024)
+var (
+	payload1B = strings.Repeat("x", 1)
+	payload1K = strings.Repeat("x", 1024)
+	payload1M = strings.Repeat("x", 1024*1024)
+)
 
-func BenchmarkRedjet(b *testing.B) {
-	socket := startRedisServer(b)
-	client := redjet.Client{
-		ConnectionPoolSize: 16,
-		IdleTimeout:        10 * time.Second,
-		Dial: func(_ context.Context) (net.Conn, error) {
-			return net.Dial("unix", socket)
-		},
-	}
+type benchClient interface {
+	get(b *testing.B, ctx context.Context, payload string, n int)
+}
 
-	ctx := context.Background()
+type redjetClient struct {
+	redjet.Client
+}
 
-	err := client.Command(ctx, "SET", "foo", big).Ok()
+func (c *redjetClient) get(b *testing.B, ctx context.Context, payload string, n int) {
+	err := c.Command(ctx, "SET", "foo", payload).Ok()
 	require.NoError(b, err)
 
 	var r *redjet.Result
 
 	b.ResetTimer()
 	b.ReportAllocs()
-	b.SetBytes(int64(len(big)))
+	b.SetBytes(int64(len(payload)))
 	for i := 0; i < b.N; i++ {
-		r = client.Pipeline(ctx, r, "GET", "foo")
+		r = c.Pipeline(ctx, r, "GET", "foo")
 	}
 
 	for r.Next() {
 		read, err := r.WriteTo(io.Discard)
 		require.NoError(b, err)
-		require.Equal(b, int64(len(big)), read)
+		require.Equal(b, int64(len(payload)), read)
 	}
 }
 
-func BenchmarkRedigo(b *testing.B) {
-	socket := startRedisServer(b)
+type redigoClient struct {
+	redigo.Conn
+}
 
-	conn, err := redigo.Dial("unix", socket)
-	require.NoError(b, err)
-
-	err = conn.Send("SET", "foo", big)
+func (c *redigoClient) get(b *testing.B, ctx context.Context, payload string, n int) {
+	err := c.Send("SET", "foo", payload)
 	require.NoError(b, err)
 
 	b.ResetTimer()
 	b.ReportAllocs()
-	b.SetBytes(int64(len(big)))
+	b.SetBytes(int64(len(payload)))
 
 	for i := 0; i < b.N; i++ {
-		conn.Send("GET", "foo")
+		c.Send("GET", "foo")
 	}
-	err = conn.Flush()
+	err = c.Flush()
 	require.NoError(b, err)
 	for i := 0; i < b.N; i++ {
-		_, err = conn.Receive()
+		_, err = c.Receive()
 		require.NoError(b, err)
 	}
 }
 
-func BenchmarkGoRedis(b *testing.B) {
-	socket := startRedisServer(b)
-	rdb := goredis.NewClient(&goredis.Options{
-		Network: "unix",
-		Addr:    socket,
-	})
+type goredisClient struct {
+	*goredis.Client
+}
 
-	ctx := context.Background()
-	err := rdb.Set(ctx, "foo", big, 0).Err()
+func (c *goredisClient) get(b *testing.B, ctx context.Context, payload string, n int) {
+	err := c.Set(ctx, "foo", payload, 0).Err()
 	require.NoError(b, err)
 
 	b.ResetTimer()
 	b.ReportAllocs()
-	b.SetBytes(int64(len(big)))
+	b.SetBytes(int64(len(payload)))
 
-	pipe := rdb.Pipeline()
+	pipe := c.Pipeline()
 
 	var results []*goredis.StringCmd
 	for i := 0; i < b.N; i++ {
@@ -153,7 +152,49 @@ func BenchmarkGoRedis(b *testing.B) {
 
 	for _, r := range results {
 		s := r.Val()
+		require.Equal(b, len(payload), len(s))
+	}
+}
 
-		require.Equal(b, len(big), len(s))
+var libFlag = flag.String("lib", "", "lib to benchmark")
+
+func BenchmarkGet(b *testing.B) {
+	socket := startRedisServer(b)
+
+	flag.Parse()
+
+	var client benchClient
+	switch *libFlag {
+	case "redjet":
+		client = &redjetClient{
+			redjet.Client{
+				ConnectionPoolSize: 16,
+				IdleTimeout:        10 * time.Second,
+				Dial: func(_ context.Context) (net.Conn, error) {
+					return net.Dial("unix", socket)
+				},
+			},
+		}
+	case "redigo":
+		conn, err := redigo.Dial("unix", socket)
+		require.NoError(b, err)
+		client = &redigoClient{conn}
+	case "go-redis":
+		client = &goredisClient{goredis.NewClient(&goredis.Options{
+			Network: "unix",
+			Addr:    socket,
+		})}
+	case "":
+		b.Fatalf("lib flag is required")
+	default:
+		b.Fatalf("unknown lib: %q", *libFlag)
+	}
+
+	ctx := context.Background()
+
+	for _, payload := range []string{payload1B, payload1K, payload1M} {
+		b.Run(humanize.Bytes(uint64(len(payload))), func(b *testing.B) {
+			client.get(b, ctx, payload, b.N)
+		})
 	}
 }

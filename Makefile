@@ -22,14 +22,11 @@ doctoc:
 .PHONY: gen-bench
 gen-bench:
 	pushd bench
-	rm -f /tmp/*.bench.out
-	libs=(GoRedis Redigo Redjet);
+	libs=(go-redis redigo redjet);
 	for lib in $${libs[@]}; do
-		# We need to standardize the names so that benchstat can compare them
-		go test -bench=$$lib -count=10 -timeout=60s -run=$$lib \
-		-memprofile=/tmp/$$lib.mem.out -cpuprofile=/tmp/$$lib.cpu.out | \
-			sed "s/$$lib/Redis/g" > \
-			/tmp/$$lib.bench.out
+		echo "Benchmarking $$lib";
+		go test -bench=. -count=10 -run=. -lib=$$lib \
+		-memprofile=/tmp/$$lib.mem.out -cpuprofile=/tmp/$$lib.cpu.out | tee /tmp/$$lib.bench.out
 		echo "Finished benchmarking $$lib";
 	done
-	benchstat -table .config -row=unit -col .file redjet=/tmp/Redjet.bench.out redigo=/tmp/Redigo.bench.out go-redis=/tmp/GoRedis.bench.out > benchstat.txt
+	benchstat -table .config -row=unit -col .file redjet=/tmp/redjet.bench.out redigo=/tmp/redjet.bench.out go-redis=/tmp/go-redis.bench.out > benchstat.txt
