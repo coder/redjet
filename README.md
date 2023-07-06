@@ -176,8 +176,6 @@ consumes far less resources when handling large responses.
 
 Here are some benchmarks (reproducible via `make gen-bench`) to illustrate:
 
-(apologies for the formatting)
-
 ```
 .fullname: Get/1_B-10
  │   redjet    │               redigo               │           go-redis            │               rueidis                │
