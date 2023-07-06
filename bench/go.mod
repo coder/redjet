@@ -20,5 +20,6 @@ require (
 	github.com/gomodule/redigo v1.8.9 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/redis/go-redis/v9 v9.0.5 // indirect
+	github.com/redis/rueidis v1.0.10 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

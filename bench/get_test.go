@@ -8,7 +8,6 @@ import (
 	"io"
 	"net"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +16,7 @@ import (
 	"github.com/dustin/go-humanize"
 	redigo "github.com/gomodule/redigo/redis"
 	goredis "github.com/redis/go-redis/v9"
+	"github.com/redis/rueidis"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,10 +34,12 @@ func (w *testWriter) Write(p []byte) (int, error) {
 }
 
 func startRedisServer(t testing.TB) string {
-	socket := filepath.Join(t.TempDir(), "redis.sock")
+	// We use a TCP port because it has much better performance.. for some
+	// unknown reason.
+	// Unfortunately, we need to bind to a port to easily use ruiedis.
 	serverCmd := exec.Command(
-		"redis-server", "--unixsocket", socket, "--loglevel", "debug",
-		"--bind", "",
+		"redis-server", "--loglevel", "debug",
+		"--bind", "127.0.0.1", "--port", "6380",
 	)
 	serverCmd.Dir = t.TempDir()
 
@@ -57,13 +59,14 @@ func startRedisServer(t testing.TB) string {
 		serverCmd.Process.Kill()
 	})
 
+	const addr = "127.0.0.1:6380"
 	// Redis will print out the socket path when it's ready to server.
 	sc := bufio.NewScanner(serverStdoutRd)
 	for sc.Scan() {
-		if !strings.Contains(sc.Text(), socket) {
+		if !strings.Contains(sc.Text(), "Ready to accept connections") {
 			continue
 		}
-		return socket
+		return addr
 	}
 	t.Fatalf("failed to start redis-server")
 	panic("unreachable")
@@ -149,10 +152,27 @@ func (c *goredisClient) get(b *testing.B, ctx context.Context, payload string, n
 	}
 }
 
+type rueidisClient struct {
+	rueidis.Client
+}
+
+func (c *rueidisClient) get(b *testing.B, ctx context.Context, payload string, n int) {
+	var cmds rueidis.Commands
+	cmds = append(cmds, c.B().Set().Key("foo").Value(payload).Build())
+
+	for i := 0; i < b.N; i++ {
+		cmds = append(cmds, c.B().Get().Key("foo").Build())
+	}
+
+	for _, resp := range c.DoMulti(ctx, cmds...) {
+		require.NoError(b, resp.Error())
+	}
+}
+
 var libFlag = flag.String("lib", "", "lib to benchmark")
 
 func BenchmarkGet(b *testing.B) {
-	socket := startRedisServer(b)
+	addr := startRedisServer(b)
 
 	flag.Parse()
 
@@ -164,19 +184,25 @@ func BenchmarkGet(b *testing.B) {
 				ConnectionPoolSize: 16,
 				IdleTimeout:        10 * time.Second,
 				Dial: func(_ context.Context) (net.Conn, error) {
-					return net.Dial("unix", socket)
+					return net.Dial("tcp", addr)
 				},
 			},
 		}
 	case "redigo":
-		conn, err := redigo.Dial("unix", socket)
+		conn, err := redigo.Dial("tcp", addr)
 		require.NoError(b, err)
 		client = &redigoClient{conn}
 	case "go-redis":
 		client = &goredisClient{goredis.NewClient(&goredis.Options{
-			Network: "unix",
-			Addr:    socket,
+			Network: "tcp",
+			Addr:    addr,
 		})}
+	case "rueidis":
+		c, err := rueidis.NewClient(rueidis.ClientOption{
+			InitAddress: []string{"127.0.0.1:6380"},
+		})
+		require.NoError(b, err)
+		client = &rueidisClient{c}
 	case "":
 		b.Fatalf("lib flag is required")
 	default:
