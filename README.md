@@ -176,29 +176,61 @@ consumes far less resources when handling large responses.
 
 Here are some benchmarks (reproducible via `make gen-bench`) to illustrate:
 
+(apologies for the formatting)
+
 ```
-goos: darwin
-goarch: arm64
-pkg: github.com/ammario/redjet/bench
- │    redjet    │             redigo             │               go-redis               │
- │    sec/op    │    sec/op     vs base          │    sec/op     vs base                │
-   1.296m ± 10%   1.401m ± 10%  ~ (p=0.075 n=10)   1.519m ± 14%  +17.21% (p=0.000 n=10)
+.fullname: Get/1_B-10
+ │   redjet    │               redigo               │           go-redis            │               rueidis                │
+ │   sec/op    │   sec/op     vs base               │   sec/op     vs base          │    sec/op     vs base                │
+   908.2n ± 2%   962.4n ± 1%  +5.97% (p=0.000 n=10)   913.8n ± 3%  ~ (p=0.280 n=10)   1045.0n ± 1%  +15.06% (p=0.000 n=10)
 
- │    redjet    │             redigo              │               go-redis                │
- │     B/s      │      B/s       vs base          │      B/s       vs base                │
-   771.8Mi ± 9%   715.9Mi ± 10%  ~ (p=0.075 n=10)   658.6Mi ± 12%  -14.67% (p=0.000 n=10)
+ │    redjet     │                redigo                │            go-redis             │               rueidis                │
+ │      B/s      │      B/s       vs base               │      B/s       vs base          │     B/s       vs base                │
+   1074.2Ki ± 2%   1015.6Ki ± 1%  -5.45% (p=0.000 n=10)   1069.3Ki ± 2%  ~ (p=0.413 n=10)   937.5Ki ± 1%  -12.73% (p=0.000 n=10)
 
- │   redjet   │                    redigo                    │                   go-redis                   │
- │    B/op    │      B/op        vs base                     │      B/op        vs base                     │
-   49.50 ± 9%   1047456.50 ± 0%  +2115973.74% (p=0.000 n=10)   1056983.50 ± 0%  +2135220.20% (p=0.000 n=10)
+ │  redjet   │            redigo            │           go-redis            │            rueidis            │
+ │   B/op    │    B/op     vs base          │    B/op      vs base          │    B/op      vs base          │
+   0.00 ± 0%   41.00 ± 0%  ? (p=0.000 n=10)   275.50 ± 2%  ? (p=0.000 n=10)   249.00 ± 0%  ? (p=0.000 n=10)
 
- │   redjet   │            redigo            │              go-redis               │
- │ allocs/op  │ allocs/op   vs base          │ allocs/op   vs base                 │
-   3.000 ± 0%   3.000 ± 0%  ~ (p=1.000 n=10)   6.000 ± 0%  +100.00% (p=0.000 n=10)
+ │   redjet   │            redigo            │           go-redis           │           rueidis            │
+ │ allocs/op  │ allocs/op   vs base          │ allocs/op   vs base          │ allocs/op   vs base          │
+   0.000 ± 0%   3.000 ± 0%  ? (p=0.000 n=10)   4.000 ± 0%  ? (p=0.000 n=10)   2.000 ± 0%  ? (p=0.000 n=10)
+
+.fullname: Get/1.0_kB-10
+ │   redjet    │               redigo                │              go-redis               │               rueidis               │
+ │   sec/op    │   sec/op     vs base                │   sec/op     vs base                │   sec/op     vs base                │
+   1.302µ ± 2%   1.802µ ± 1%  +38.42% (p=0.000 n=10)   1.713µ ± 3%  +31.58% (p=0.000 n=10)   1.645µ ± 1%  +26.35% (p=0.000 n=10)
+
+ │    redjet    │                redigo                │               go-redis               │               rueidis                │
+ │     B/s      │     B/s       vs base                │     B/s       vs base                │     B/s       vs base                │
+   750.4Mi ± 2%   542.1Mi ± 1%  -27.76% (p=0.000 n=10)   570.3Mi ± 3%  -24.01% (p=0.000 n=10)   593.8Mi ± 1%  -20.87% (p=0.000 n=10)
+
+ │    redjet    │             redigo             │            go-redis            │            rueidis             │
+ │     B/op     │     B/op      vs base          │     B/op      vs base          │     B/op      vs base          │
+   0.000Ki ± 0%   1.039Ki ± 0%  ? (p=0.000 n=10)   1.392Ki ± 0%  ? (p=0.000 n=10)   1.248Ki ± 1%  ? (p=0.000 n=10)
+
+ │   redjet   │            redigo            │           go-redis           │           rueidis            │
+ │ allocs/op  │ allocs/op   vs base          │ allocs/op   vs base          │ allocs/op   vs base          │
+   0.000 ± 0%   3.000 ± 0%  ? (p=0.000 n=10)   4.000 ± 0%  ? (p=0.000 n=10)   2.000 ± 0%  ? (p=0.000 n=10)
+
+.fullname: Get/1.0_MB-10
+ │   redjet    │            redigo             │              go-redis               │            rueidis            │
+ │   sec/op    │   sec/op     vs base          │   sec/op     vs base                │   sec/op     vs base          │
+   472.5µ ± 7%   477.3µ ± 2%  ~ (p=0.190 n=10)   536.8µ ± 6%  +13.61% (p=0.000 n=10)   475.3µ ± 6%  ~ (p=0.684 n=10)
+
+ │    redjet    │             redigo             │               go-redis               │            rueidis             │
+ │     B/s      │     B/s       vs base          │     B/s       vs base                │     B/s       vs base          │
+   2.067Gi ± 8%   2.046Gi ± 2%  ~ (p=0.190 n=10)   1.819Gi ± 6%  -11.98% (p=0.000 n=10)   2.055Gi ± 6%  ~ (p=0.684 n=10)
+
+ │   redjet    │                    redigo                    │                   go-redis                   │                   rueidis                    │
+ │    B/op     │      B/op        vs base                     │      B/op        vs base                     │      B/op        vs base                     │
+   51.00 ± 12%   1047849.50 ± 0%  +2054506.86% (p=0.000 n=10)   1057005.00 ± 0%  +2072458.82% (p=0.000 n=10)   1048808.50 ± 0%  +2056387.25% (p=0.000 n=10)
+
+ │   redjet   │               redigo                │              go-redis               │               rueidis               │
+ │ allocs/op  │ allocs/op   vs base                 │ allocs/op   vs base                 │ allocs/op   vs base                 │
+   1.000 ± 0%   3.000 ± 0%  +200.00% (p=0.000 n=10)   4.000 ± 0%  +300.00% (p=0.000 n=10)   2.000 ± 0%  +100.00% (p=0.000 n=10)
+
 ```
-
-Note that these results are a bit contrived in that they GET a 1MB value. The performance
-of all libraries converge as response size decreases.
 
 ## Limitations
 
