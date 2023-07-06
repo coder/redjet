@@ -22,11 +22,14 @@ doctoc:
 .PHONY: gen-bench
 gen-bench:
 	pushd bench
-	libs=(go-redis redigo redjet);
+	libs=(go-redis redigo redjet rueidis);
 	for lib in $${libs[@]}; do
 		echo "Benchmarking $$lib";
 		go test -bench=. -count=10 -run=. -lib=$$lib \
 		-memprofile=/tmp/$$lib.mem.out -cpuprofile=/tmp/$$lib.cpu.out | tee /tmp/$$lib.bench.out
 		echo "Finished benchmarking $$lib";
 	done
-	benchstat -table .fullname -row=unit -col .file redjet=/tmp/redjet.bench.out redigo=/tmp/redigo.bench.out go-redis=/tmp/go-redis.bench.out > benchstat.txt
+	benchstat -table .fullname -row=unit -col .file \
+		redjet=/tmp/redjet.bench.out redigo=/tmp/redigo.bench.out \
+		go-redis=/tmp/go-redis.bench.out rueidis=/tmp/rueidis.bench.out \
+		> benchstat.txt
