@@ -29,4 +29,4 @@ gen-bench:
 		-memprofile=/tmp/$$lib.mem.out -cpuprofile=/tmp/$$lib.cpu.out | tee /tmp/$$lib.bench.out
 		echo "Finished benchmarking $$lib";
 	done
-	benchstat -table .config -row=unit -col .file redjet=/tmp/redjet.bench.out redigo=/tmp/redjet.bench.out go-redis=/tmp/go-redis.bench.out > benchstat.txt
+	benchstat -table .fullname -row=unit -col .file redjet=/tmp/redjet.bench.out redigo=/tmp/redigo.bench.out go-redis=/tmp/go-redis.bench.out > benchstat.txt

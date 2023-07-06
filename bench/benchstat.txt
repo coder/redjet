@@ -1,0 +1,50 @@
+.fullname: Get/1_B-10
+ │   redjet    │               redigo                │              go-redis              │
+ │   sec/op    │    sec/op     vs base               │   sec/op     vs base               │
+   971.1n ± 3%   1004.0n ± 0%  +3.39% (p=0.002 n=10)   930.2n ± 1%  -4.22% (p=0.000 n=10)
+
+ │    redjet     │               redigo                │               go-redis               │
+ │      B/s      │     B/s       vs base               │      B/s       vs base               │
+   1005.9Ki ± 3%   971.7Ki ± 1%  -3.40% (p=0.001 n=10)   1049.8Ki ± 0%  +4.37% (p=0.000 n=10)
+
+ │  redjet   │            redigo            │           go-redis            │
+ │   B/op    │    B/op     vs base          │    B/op      vs base          │
+   0.00 ± 0%   41.00 ± 0%  ? (p=0.000 n=10)   274.00 ± 0%  ? (p=0.000 n=10)
+
+ │   redjet   │            redigo            │           go-redis           │
+ │ allocs/op  │ allocs/op   vs base          │ allocs/op   vs base          │
+   0.000 ± 0%   3.000 ± 0%  ? (p=0.000 n=10)   4.000 ± 0%  ? (p=0.000 n=10)
+
+.fullname: Get/1.0_kB-10
+ │   redjet    │               redigo                │              go-redis               │
+ │   sec/op    │   sec/op     vs base                │   sec/op     vs base                │
+   1.573µ ± 5%   1.779µ ± 5%  +13.10% (p=0.000 n=10)   2.050µ ± 2%  +30.32% (p=0.000 n=10)
+
+ │    redjet    │                redigo                │               go-redis               │
+ │     B/s      │     B/s       vs base                │     B/s       vs base                │
+   620.9Mi ± 5%   549.0Mi ± 5%  -11.57% (p=0.000 n=10)   476.3Mi ± 2%  -23.28% (p=0.000 n=10)
+
+ │    redjet    │             redigo             │            go-redis            │
+ │     B/op     │     B/op      vs base          │     B/op      vs base          │
+   0.000Ki ± 0%   1.039Ki ± 0%  ? (p=0.000 n=10)   1.397Ki ± 1%  ? (p=0.000 n=10)
+
+ │   redjet   │            redigo            │           go-redis           │
+ │ allocs/op  │ allocs/op   vs base          │ allocs/op   vs base          │
+   0.000 ± 0%   3.000 ± 0%  ? (p=0.000 n=10)   4.000 ± 0%  ? (p=0.000 n=10)
+
+.fullname: Get/1.0_MB-10
+ │   redjet    │               redigo               │               go-redis               │
+ │   sec/op    │   sec/op     vs base               │    sec/op     vs base                │
+   1.143m ± 4%   1.246m ± 5%  +9.00% (p=0.000 n=10)   1.389m ± 16%  +21.59% (p=0.000 n=10)
+
+ │    redjet    │               redigo                │               go-redis                │
+ │     B/s      │     B/s       vs base               │      B/s       vs base                │
+   875.1Mi ± 4%   802.9Mi ± 4%  -8.26% (p=0.000 n=10)   719.8Mi ± 20%  -17.75% (p=0.000 n=10)
+
+ │   redjet   │                   redigo                   │                  go-redis                  │
+ │    B/op    │      B/op       vs base                    │      B/op       vs base                    │
+   128.0 ± 9%   1047496.0 ± 0%  +818256.25% (p=0.000 n=10)   1056997.0 ± 0%  +825678.91% (p=0.000 n=10)
+
+ │   redjet   │               redigo                │              go-redis               │
+ │ allocs/op  │ allocs/op   vs base                 │ allocs/op   vs base                 │
+   1.000 ± 0%   3.000 ± 0%  +200.00% (p=0.000 n=10)   4.000 ± 0%  +300.00% (p=0.000 n=10)

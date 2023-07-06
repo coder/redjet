@@ -11,7 +11,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"time"
 )
 
 // Error represents an error returned by the Redis server, as opposed to a
@@ -112,9 +111,6 @@ var (
 )
 
 func readBulkString(w io.Writer, c net.Conn, rd *bufio.Reader, copyBuf []byte) (int, error) {
-	// We should read the length fast.
-	c.SetReadDeadline(time.Now().Add(time.Second * 5))
-
 	newlineBuf, err := readUntilNewline(rd, copyBuf)
 	if err != nil {
 		return 0, err
@@ -133,11 +129,6 @@ func readBulkString(w io.Writer, c net.Conn, rd *bufio.Reader, copyBuf []byte) (
 	if g, ok := w.(grower); ok {
 		g.Grow(stringSize)
 	}
-
-	// Give about a second per byte.
-	c.SetReadDeadline(time.Now().Add(
-		time.Second*5 + (time.Duration(stringSize) * time.Second),
-	))
 
 	// io.CopyN will allocate a buffer of size N when N is small, so we
 	// replace the behavior here.

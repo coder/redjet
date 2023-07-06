@@ -88,8 +88,8 @@ func (c *Client) getConn(ctx context.Context) (*Result, error) {
 	conn := &conn{
 		Conn:     nc,
 		lastUsed: time.Now(),
-		wr:       bufio.NewWriter(nc),
-		rd:       bufio.NewReader(nc),
+		wr:       bufio.NewWriterSize(nc, 32*1024),
+		rd:       bufio.NewReaderSize(nc, 32*1024),
 		miscBuf:  make([]byte, 32*1024),
 	}
 
@@ -124,30 +124,30 @@ func (c *Client) putConn(conn *conn) {
 	c.pool.put(conn)
 }
 
-const crlf = "\r\n"
+var crlf = []byte("\r\n")
 
 func writeBulkString(w *bufio.Writer, s string) {
 	w.WriteString("$")
 	w.WriteString(strconv.Itoa(len(s)))
-	w.WriteString(crlf)
+	w.Write(crlf)
 	w.WriteString(s)
-	w.WriteString(crlf)
+	w.Write(crlf)
 }
 
 func writeBulkBytes(w *bufio.Writer, b []byte) {
 	w.WriteString("$")
 	w.WriteString(strconv.Itoa(len(b)))
-	w.WriteString(crlf)
+	w.Write(crlf)
 	w.Write(b)
-	w.WriteString(crlf)
+	w.Write(crlf)
 }
 
 func writeBulkReader(w *bufio.Writer, rd LenReader) {
 	w.WriteString("$")
 	w.WriteString(strconv.Itoa(rd.Len()))
-	w.WriteString(crlf)
+	w.Write(crlf)
 	io.CopyN(w, rd, int64(rd.Len()))
-	w.WriteString(crlf)
+	w.Write(crlf)
 }
 
 // LenReader is an io.Reader that also knows its length.
@@ -219,9 +219,9 @@ func (c *Client) Pipeline(ctx context.Context, r *Result, cmd string, args ...an
 
 	// We're instructing redis that we're sending an array of the command
 	// and its arguments.
-	r.conn.wr.WriteString("*")
+	r.conn.wr.WriteByte('*')
 	r.conn.wr.WriteString(strconv.Itoa(len(args) + 1))
-	r.conn.wr.WriteString(crlf)
+	r.conn.wr.Write(crlf)
 
 	writeBulkString(r.conn.wr, cmd)
 

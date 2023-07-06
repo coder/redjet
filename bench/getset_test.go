@@ -89,9 +89,6 @@ func (c *redjetClient) get(b *testing.B, ctx context.Context, payload string, n 
 
 	var r *redjet.Result
 
-	b.ResetTimer()
-	b.ReportAllocs()
-	b.SetBytes(int64(len(payload)))
 	for i := 0; i < b.N; i++ {
 		r = c.Pipeline(ctx, r, "GET", "foo")
 	}
@@ -99,7 +96,9 @@ func (c *redjetClient) get(b *testing.B, ctx context.Context, payload string, n 
 	for r.Next() {
 		read, err := r.WriteTo(io.Discard)
 		require.NoError(b, err)
-		require.Equal(b, int64(len(payload)), read)
+		if read != int64(len(payload)) {
+			b.Fatalf("read %d bytes, expected %d", read, len(payload))
+		}
 	}
 }
 
@@ -110,10 +109,6 @@ type redigoClient struct {
 func (c *redigoClient) get(b *testing.B, ctx context.Context, payload string, n int) {
 	err := c.Send("SET", "foo", payload)
 	require.NoError(b, err)
-
-	b.ResetTimer()
-	b.ReportAllocs()
-	b.SetBytes(int64(len(payload)))
 
 	for i := 0; i < b.N; i++ {
 		c.Send("GET", "foo")
@@ -134,10 +129,6 @@ func (c *goredisClient) get(b *testing.B, ctx context.Context, payload string, n
 	err := c.Set(ctx, "foo", payload, 0).Err()
 	require.NoError(b, err)
 
-	b.ResetTimer()
-	b.ReportAllocs()
-	b.SetBytes(int64(len(payload)))
-
 	pipe := c.Pipeline()
 
 	var results []*goredis.StringCmd
@@ -152,7 +143,9 @@ func (c *goredisClient) get(b *testing.B, ctx context.Context, payload string, n
 
 	for _, r := range results {
 		s := r.Val()
-		require.Equal(b, len(payload), len(s))
+		if len(s) != len(payload) {
+			b.Fatalf("read %d bytes, expected %d", len(s), len(payload))
+		}
 	}
 }
 
@@ -194,6 +187,8 @@ func BenchmarkGet(b *testing.B) {
 
 	for _, payload := range []string{payload1B, payload1K, payload1M} {
 		b.Run(humanize.Bytes(uint64(len(payload))), func(b *testing.B) {
+			b.ReportAllocs()
+			b.SetBytes(int64(len(payload)))
 			client.get(b, ctx, payload, b.N)
 		})
 	}
