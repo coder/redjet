@@ -79,14 +79,14 @@ var (
 )
 
 type benchClient interface {
-	get(b *testing.B, ctx context.Context, payload string, n int)
+	get(b *testing.B, ctx context.Context, payload string)
 }
 
 type redjetClient struct {
 	redjet.Client
 }
 
-func (c *redjetClient) get(b *testing.B, ctx context.Context, payload string, n int) {
+func (c *redjetClient) get(b *testing.B, ctx context.Context, payload string) {
 	err := c.Command(ctx, "SET", "foo", payload).Ok()
 	require.NoError(b, err)
 
@@ -109,7 +109,7 @@ type redigoClient struct {
 	redigo.Conn
 }
 
-func (c *redigoClient) get(b *testing.B, ctx context.Context, payload string, n int) {
+func (c *redigoClient) get(b *testing.B, ctx context.Context, payload string) {
 	err := c.Send("SET", "foo", payload)
 	require.NoError(b, err)
 
@@ -128,7 +128,7 @@ type goredisClient struct {
 	*goredis.Client
 }
 
-func (c *goredisClient) get(b *testing.B, ctx context.Context, payload string, n int) {
+func (c *goredisClient) get(b *testing.B, ctx context.Context, payload string) {
 	err := c.Set(ctx, "foo", payload, 0).Err()
 	require.NoError(b, err)
 
@@ -156,7 +156,7 @@ type rueidisClient struct {
 	rueidis.Client
 }
 
-func (c *rueidisClient) get(b *testing.B, ctx context.Context, payload string, n int) {
+func (c *rueidisClient) get(b *testing.B, ctx context.Context, payload string) {
 	var cmds rueidis.Commands
 	cmds = append(cmds, c.B().Set().Key("foo").Value(payload).Build())
 
@@ -215,7 +215,7 @@ func BenchmarkGet(b *testing.B) {
 		b.Run(humanize.Bytes(uint64(len(payload))), func(b *testing.B) {
 			b.ReportAllocs()
 			b.SetBytes(int64(len(payload)))
-			client.get(b, ctx, payload, b.N)
+			client.get(b, ctx, payload)
 		})
 	}
 }
