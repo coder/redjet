@@ -25,7 +25,7 @@ gen-bench:
 	libs=(go-redis redigo redjet rueidis);
 	for lib in $${libs[@]}; do
 		echo "Benchmarking $$lib";
-		go test -bench=. -count=10 -run=. -lib=$$lib \
+		go test -benchtime=10000x -bench=. -count=10 -run=. -lib=$$lib \
 		-memprofile=/tmp/$$lib.mem.out -cpuprofile=/tmp/$$lib.cpu.out | tee /tmp/$$lib.bench.out
 		echo "Finished benchmarking $$lib";
 	done
