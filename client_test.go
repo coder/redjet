@@ -113,6 +113,18 @@ func TestClient_SetGet(t *testing.T) {
 	require.Equal(t, []byte("bytebar"), got)
 }
 
+func TestClient_NotFound(t *testing.T) {
+	t.Parallel()
+
+	_, client := startRedisServer(t)
+
+	ctx := context.Background()
+
+	got, err := client.Command(ctx, "GET", "brah").String()
+	require.NoError(t, err)
+	require.Equal(t, "", got)
+}
+
 func TestClient_Race(t *testing.T) {
 	t.Parallel()
 
