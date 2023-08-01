@@ -448,6 +448,9 @@ func (r *Result) next() bool {
 //
 // It is safe to call Close multiple times.
 func (r *Result) Close() error {
+	if r == nil {
+		return nil
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
