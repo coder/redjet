@@ -109,7 +109,12 @@ func (c *Client) getConn(ctx context.Context) (*Result, error) {
 	} else {
 		r = c.Pipeline(ctx, r, "AUTH", c.AuthPassword)
 	}
-	// The beauty of pipelining is that authentication doesn't add a round-trip.
+
+	err = r.Ok()
+	if err != nil {
+		nc.Close()
+		return nil, fmt.Errorf("auth: %w", err)
+	}
 
 	return r, nil
 }
