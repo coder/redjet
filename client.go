@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -65,11 +66,24 @@ func (c *Client) initPool() {
 	}
 }
 
-func (c *Client) freeConns() int {
+type PoolStats struct {
+	FreeConns      int
+	Returns        int64
+	FullPoolCloses int64
+	CleanCycles    int64
+}
+
+// PoolStats returns statistics about the connection pool.
+func (c *Client) PoolStats() PoolStats {
 	if c.pool == nil {
-		return 0
+		return PoolStats{}
 	}
-	return len(c.pool.free)
+	return PoolStats{
+		FreeConns:      len(c.pool.free),
+		Returns:        atomic.LoadInt64(&c.pool.returns),
+		FullPoolCloses: atomic.LoadInt64(&c.pool.fullPoolCloses),
+		CleanCycles:    atomic.LoadInt64(&c.pool.cleanCycles),
+	}
 }
 
 // getConn gets a new conn, wrapped in a Result. The conn is already authenticated.
