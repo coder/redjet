@@ -57,7 +57,13 @@ func (c *Cache[V]) Do(
 		return v, fmt.Errorf("marshal value: %w", err)
 	}
 
-	r = c.Client.Pipeline(ctx, r, "SETEX", fullKey, c.TTL.Seconds(), b)
+	exp := c.TTL / time.Millisecond
+
+	if exp == 0 {
+		return v, fmt.Errorf("TTL is %v, but must be > %v", c.TTL, time.Millisecond)
+	}
+
+	r = c.Client.Pipeline(ctx, r, "SET", fullKey, b, "PX", int(exp))
 	err = r.Ok()
 	if err != nil {
 		return v, fmt.Errorf("cache set: %w", err)
