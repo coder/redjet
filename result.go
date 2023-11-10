@@ -487,5 +487,9 @@ func (r *Result) close() error {
 		return nil
 	}
 
-	return conn.Close()
+	if conn != nil {
+		return conn.Close()
+	}
+
+	return nil
 }
