@@ -224,7 +224,7 @@ func (r *Result) Strings() ([]string, error) {
 		return nil, fmt.Errorf("read array length: %w", err)
 	}
 
-	if ln < 0 {
+	if ln <= 0 {
 		return nil, nil
 	}
 
@@ -309,18 +309,27 @@ func (r *Result) writeTo(w io.Writer) (int64, replyType, error) {
 		}
 
 		isNewArray := typ == '*'
+		var newArraySize int
 		if isNewArray {
+			var err error
 			// New array
-			n, err := strconv.Atoi(string(s))
+			newArraySize, err = strconv.Atoi(string(s))
 			if err != nil {
 				return 0, typ, fmt.Errorf("invalid array length %q", s)
 			}
-			r.arrayStack = append(r.arrayStack, n)
+			if newArraySize > 0 {
+				r.arrayStack = append(r.arrayStack, newArraySize)
+			}
 		}
 
 		var n int
 		n, r.err = w.Write(s)
 		if !isNewArray {
+			// On new arrays, we don't want to advance any state
+			// as we've just modified the array stack.
+			incrRead()
+		} else if newArraySize == 0 {
+			// Nil array, so we want to advance pipeline.
 			incrRead()
 		}
 		return int64(n), typ, r.err
@@ -397,10 +406,11 @@ func (r *Result) ArrayLength() (int, error) {
 	}
 
 	// -1 is a nil array.
-	if gotN < 0 {
+	if gotN <= 0 {
 		return gotN, nil
 	}
 
+	// Sanity check that we've populated the array stack correctly.
 	if r.arrayStack[len(r.arrayStack)-1] != gotN {
 		// This should be impossible.
 		return 0, fmt.Errorf("array stack mismatch (expected %d, got %d)", r.arrayStack[len(r.arrayStack)-1], gotN)
@@ -432,16 +442,21 @@ func (r *Result) Next() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	return r.next()
+	return r.hasMore()
 }
 
-// next returns true if there are more results to read.
-func (r *Result) next() bool {
+// hasMore returns true if there are more results to read.
+func (r *Result) hasMore() bool {
 	if r.err != nil {
 		return false
 	}
 
-	return r.pipeline.at < r.pipeline.end || len(r.arrayStack) > 0
+	var arrays int
+	for _, n := range r.arrayStack {
+		arrays += n
+	}
+
+	return r.pipeline.at < r.pipeline.end || arrays > 0
 }
 
 // Close releases all resources associated with the result.
@@ -458,7 +473,7 @@ func (r *Result) Close() error {
 }
 
 func (r *Result) close() error {
-	for r.next() {
+	for r.hasMore() {
 		// Read the result into discard so that the connection can be reused.
 		_, _, err := r.writeTo(io.Discard)
 		if errors.Is(err, errClosed) {

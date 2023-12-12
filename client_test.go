@@ -53,6 +53,26 @@ func TestClient_NotFound(t *testing.T) {
 	require.Equal(t, "", got)
 }
 
+func TestClient_List(t *testing.T) {
+	t.Parallel()
+
+	_, client := redtest.StartRedisServer(t)
+
+	ctx := context.Background()
+
+	arr, err := client.Command(ctx, "LRANGE", "foo", "-1", -1).Strings()
+	require.NoError(t, err)
+	require.Empty(t, arr)
+
+	n, err := client.Command(ctx, "RPUSH", "foo", "bar").Int()
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+
+	arr, err = client.Command(ctx, "LRANGE", "foo", "-1", -1).Strings()
+	require.NoError(t, err)
+	require.Equal(t, []string{"bar"}, arr)
+}
+
 func TestClient_Race(t *testing.T) {
 	t.Parallel()
 
