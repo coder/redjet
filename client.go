@@ -86,8 +86,8 @@ func (c *Client) PoolStats() PoolStats {
 	}
 }
 
-// getConn gets a new conn, wrapped in a Result. The conn is already authenticated.
-func (c *Client) getConn(ctx context.Context) (*Result, error) {
+// getConn gets a new conn, wrapped in a Pipeline. The conn is already authenticated.
+func (c *Client) getConn(ctx context.Context) (*Pipeline, error) {
 	c.initPool()
 
 	if conn, ok := c.pool.tryGet(ctx); ok {
@@ -192,8 +192,8 @@ func NewLenReader(r io.Reader, size int) LenReader {
 	}
 }
 
-func (c *Client) newResult(conn *conn) *Result {
-	return &Result{
+func (c *Client) newResult(conn *conn) *Pipeline {
+	return &Pipeline{
 		closeCh: make(chan struct{}),
 		conn:    conn,
 		client:  c,
@@ -202,19 +202,19 @@ func (c *Client) newResult(conn *conn) *Result {
 
 // Pipeline sends a command to the server and returns the promise of a result.
 // r may be nil, as in the case of the first command in a pipeline. Each successive
-// call to Pipeline should re-use the last returned Result.
+// call to Pipeline should re-use the last returned Pipeline.
 //
 // args may be strings, []byte, or LenReader. Other types are converted to strings
 // with fmt.Sprintf("%v", arg).
 //
 // It is safe to keep a pipeline running for a long time, with many send and
 // receive cycles.
-func (c *Client) Pipeline(ctx context.Context, r *Result, cmd string, args ...any) *Result {
+func (c *Client) Pipeline(ctx context.Context, r *Pipeline, cmd string, args ...any) *Pipeline {
 	var err error
 	if r == nil {
 		r, err = c.getConn(ctx)
 		if err != nil {
-			return &Result{
+			return &Pipeline{
 				err: fmt.Errorf("get conn: %w", err),
 			}
 		}
@@ -267,7 +267,7 @@ func (c *Client) Pipeline(ctx context.Context, r *Result, cmd string, args ...an
 // See Pipeline for more information on argument types.
 //
 // The caller should call Close on the result when finished with it.
-func (c *Client) Command(ctx context.Context, cmd string, args ...any) *Result {
+func (c *Client) Command(ctx context.Context, cmd string, args ...any) *Pipeline {
 	r := c.Pipeline(ctx, nil, cmd, args...)
 	r.CloseOnRead = true
 	return r

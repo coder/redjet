@@ -70,7 +70,7 @@ func main() {
 
 ## Streaming
 
-To minimize allocations, call `(*Result).WriteTo` instead of `(*Result).Bytes`.
+To minimize allocations, call `(*Pipeline).WriteTo` instead of `(*Pipeline).Bytes`.
 `WriteTo` streams the response directly to an `io.Writer` such as a file or HTTP response.
 
 For example:
@@ -108,19 +108,19 @@ want to avoid large allocations, you may chunk a stream into Redis using repeate
 
 ## Pipelining
 
-`redjet` supports [pipelining](https://redis.io/docs/manual/pipelining/) via the `Pipeline` method. This method accepts a Result, potentially that of a previous, open command.
+`redjet` supports [pipelining](https://redis.io/docs/manual/pipelining/) via the `(*Client).Pipeline` method. This method accepts a `Pipeline`, potentially that of a previous, open command.
 
 ```go
 // Set foo0, foo1, ..., foo99 to "bar", and confirm that each succeeded.
 //
 // This entire example only takes one round-trip to Redis!
-var r *Result
+var p *Pipeline
 for i := 0; i < 100; i++ {
-    r = client.Pipeline(r, "SET", fmt.Sprintf("foo%d", i), "bar")
+    p = client.Pipeline(p, "SET", fmt.Sprintf("foo%d", i), "bar")
 }
 
 for r.Next() {
-    if err := r.Ok(); err != nil {
+    if err := p.Ok(); err != nil {
         log.Fatal(err)
     }
 }
@@ -165,7 +165,7 @@ within the `Client` struct that may be changed before any Commands are
 issued.
 
 If you want synchronous command execution over the same connection,
-use the `Pipeline` method and consume the Result after each call to `Pipeline`. Storing a long-lived `Result`
+use the `Pipeline` method and consume the Pipeline after each call to `Pipeline`. Storing a long-lived `Pipeline`
 offers the same functionality as storing a long-lived connection.
 
 ## Benchmarks

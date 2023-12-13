@@ -21,11 +21,11 @@ type SubMessage struct {
 	Payload string
 }
 
-// NextSubMessage reads the next subscribe from the result.
+// NextSubMessage reads the next subscribe from the pipeline.
 // Read more: https://redis.io/docs/manual/pubsub/.
 //
-// It does not close the Result even if CloseOnRead is true.
-func (r *Result) NextSubMessage() (*SubMessage, error) {
+// It does not close the Pipeline even if CloseOnRead is true.
+func (r *Pipeline) NextSubMessage() (*SubMessage, error) {
 	// NextSubMessage is implemented without using internal methods to
 	// demonstrate how to use the public API.
 

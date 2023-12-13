@@ -40,11 +40,11 @@ type pipeline struct {
 	end int
 }
 
-// Result is the result of a command.
+// Pipeline is the result of a command.
 //
 // Its methods are not safe for concurrent use.
-type Result struct {
-	// CloseOnRead determines whether the result is closed after the first read.
+type Pipeline struct {
+	// CloseOnRead determines whether the Pipeline is closed after the first read.
 	//
 	// It is set to True when the result is returned from Command, and
 	// False when it is returned from Pipeline.
@@ -74,7 +74,7 @@ type Result struct {
 	arrayStack []int
 }
 
-func (r *Result) Error() string {
+func (r *Pipeline) Error() string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.err == nil {
@@ -167,21 +167,21 @@ func readBulkString(w io.Writer, c net.Conn, rd *bufio.Reader, copyBuf []byte) (
 
 var errClosed = fmt.Errorf("result closed")
 
-func (r *Result) checkClosed() error {
+func (r *Pipeline) checkClosed() error {
 	if atomic.LoadInt64(&r.closed) != 0 {
 		return errClosed
 	}
 	return nil
 }
 
-var _ io.WriterTo = (*Result)(nil)
+var _ io.WriterTo = (*Pipeline)(nil)
 
 // WriteTo writes the result to w.
 //
 // r.CloseOnRead sets whether the result is closed after the first read.
 //
 // The result is never automatically closed if in progress of reading an array.
-func (r *Result) WriteTo(w io.Writer) (int64, error) {
+func (r *Pipeline) WriteTo(w io.Writer) (int64, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -201,7 +201,7 @@ func (r *Result) WriteTo(w io.Writer) (int64, error) {
 // ArrayStack returns the position of the result within an array.
 //
 // The returned slice must not be modified.
-func (r *Result) ArrayStack() []int {
+func (r *Pipeline) ArrayStack() []int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -209,7 +209,7 @@ func (r *Result) ArrayStack() []int {
 }
 
 // Strings returns the array result as a slice of strings.
-func (r *Result) Strings() ([]string, error) {
+func (r *Pipeline) Strings() ([]string, error) {
 	// Strings intentionally doesn't hold the mutex or interact with other
 	// internal fields to demonstrate how to use the public API.
 	defer func() {
@@ -252,8 +252,8 @@ const (
 // writeTo writes the result to w. The second return value is whether or not
 // the value indicates an array.
 //
-// It is the master function of the Result type, centralizing key logic.
-func (r *Result) writeTo(w io.Writer) (int64, replyType, error) {
+// It is the master function of the Pipeline type, centralizing key logic.
+func (r *Pipeline) writeTo(w io.Writer) (int64, replyType, error) {
 	if err := r.checkClosed(); err != nil {
 		return 0, 0, err
 	}
@@ -358,7 +358,7 @@ func (r *Result) writeTo(w io.Writer) (int64, replyType, error) {
 // Bytes returns the result as a byte slice.
 //
 // Refer to r.CloseOnRead for whether the result is closed after the first read.
-func (r *Result) Bytes() ([]byte, error) {
+func (r *Pipeline) Bytes() ([]byte, error) {
 	var buf bytes.Buffer
 	_, err := r.WriteTo(&buf)
 	return buf.Bytes(), err
@@ -367,7 +367,7 @@ func (r *Result) Bytes() ([]byte, error) {
 // String returns the result as a string.
 //
 // Refer to r.CloseOnRead for whether the result is closed after the first read.
-func (r *Result) String() (string, error) {
+func (r *Pipeline) String() (string, error) {
 	var sb strings.Builder
 	_, err := r.WriteTo(&sb)
 	return sb.String(), err
@@ -376,7 +376,7 @@ func (r *Result) String() (string, error) {
 // Int returns the result as an integer.
 //
 // Refer to r.CloseOnRead for whether the result is closed after the first read.
-func (r *Result) Int() (int, error) {
+func (r *Pipeline) Int() (int, error) {
 	s, err := r.String()
 	if err != nil {
 		return 0, err
@@ -385,8 +385,8 @@ func (r *Result) Int() (int, error) {
 }
 
 // ArrayLength reads the next message as an array length.
-// It does not close the Result even if CloseOnRead is true.
-func (r *Result) ArrayLength() (int, error) {
+// It does not close the Pipeline even if CloseOnRead is true.
+func (r *Pipeline) ArrayLength() (int, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -422,7 +422,7 @@ func (r *Result) ArrayLength() (int, error) {
 // Ok returns whether the result is "OK". Note that it may fail even if the
 //
 // command succeeded. For example, a successful GET will return a value.
-func (r *Result) Ok() error {
+func (r *Pipeline) Ok() error {
 	got, err := r.Bytes()
 	if err != nil {
 		return err
@@ -434,7 +434,7 @@ func (r *Result) Ok() error {
 }
 
 // Next returns true if there are more results to read.
-func (r *Result) Next() bool {
+func (r *Pipeline) Next() bool {
 	if r == nil {
 		return false
 	}
@@ -446,7 +446,7 @@ func (r *Result) Next() bool {
 }
 
 // hasMore returns true if there are more results to read.
-func (r *Result) hasMore() bool {
+func (r *Pipeline) hasMore() bool {
 	if r.err != nil {
 		return false
 	}
@@ -462,7 +462,7 @@ func (r *Result) hasMore() bool {
 // Close releases all resources associated with the result.
 //
 // It is safe to call Close multiple times.
-func (r *Result) Close() error {
+func (r *Pipeline) Close() error {
 	if r == nil {
 		return nil
 	}
@@ -472,7 +472,7 @@ func (r *Result) Close() error {
 	return r.close()
 }
 
-func (r *Result) close() error {
+func (r *Pipeline) close() error {
 	for r.hasMore() {
 		// Read the result into discard so that the connection can be reused.
 		_, _, err := r.writeTo(io.Discard)

@@ -133,7 +133,7 @@ func TestClient_ShortRead(t *testing.T) {
 	// even when pipeline is short-read.
 
 	for i := 0; i < 100; i++ {
-		var r *redjet.Result
+		var r *redjet.Pipeline
 		r = client.Pipeline(context.Background(), r, "SET", "foo", "bar")
 		r = client.Pipeline(context.Background(), r, "GET", "foo")
 		if 1%10 == 0 {
@@ -389,7 +389,7 @@ func Benchmark_Get(b *testing.B) {
 			const (
 				batchSize = 100
 			)
-			var r *redjet.Result
+			var r *redjet.Pipeline
 			// We avoid assert/require in the hot path since it meaningfully
 			// affects the benchmark.
 			get := func() {
