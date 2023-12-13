@@ -3,6 +3,7 @@ package redjet
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -204,8 +205,8 @@ func (c *Client) newResult(conn *conn) *Pipeline {
 // r may be nil, as in the case of the first command in a pipeline. Each successive
 // call to Pipeline should re-use the last returned Pipeline.
 //
-// args may be strings, []byte, or LenReader. Other types are converted to strings
-// with fmt.Sprintf("%v", arg).
+// Known arg types are strings, []byte, LenReader, and fmt.Stringer. All other types
+// will be converted to JSON.
 //
 // It is safe to keep a pipeline running for a long time, with many send and
 // receive cycles.
@@ -270,8 +271,15 @@ func (c *Client) Pipeline(ctx context.Context, r *Pipeline, cmd string, args ...
 			writeBulkBytes(r.conn.wr, arg)
 		case LenReader:
 			writeBulkReader(r.conn.wr, arg)
+		case fmt.Stringer:
+			writeBulkString(r.conn.wr, arg.String())
 		default:
-			writeBulkString(r.conn.wr, fmt.Sprintf("%v", arg))
+			v, err := json.Marshal(arg)
+			if err != nil {
+				// It's relatively rare to get an error here.
+				panic(fmt.Sprintf("failed to marshal %T: %v", arg, err))
+			}
+			writeBulkBytes(r.conn.wr, v)
 		}
 	}
 

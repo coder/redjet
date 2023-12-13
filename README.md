@@ -23,14 +23,14 @@ is really a Pipeline of size 1.
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
 
-- [redjet](#redjet)
-  - [Basic Usage](#basic-usage)
-  - [Streaming](#streaming)
-  - [Pipelining](#pipelining)
-  - [PubSub](#pubsub)
-  - [Connection Pooling](#connection-pooling)
-  - [Benchmarks](#benchmarks)
-  - [Limitations](#limitations)
+- [Basic Usage](#basic-usage)
+- [Streaming](#streaming)
+- [Pipelining](#pipelining)
+- [PubSub](#pubsub)
+- [JSON](#json)
+- [Connection Pooling](#connection-pooling)
+- [Benchmarks](#benchmarks)
+- [Limitations](#limitations)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -157,6 +157,32 @@ re-use it.
 
 It is possible to subscribe to a channel in a performant, low-allocation way
 via the public API. NextSubMessage is just a convenience method.
+
+## JSON
+
+`redjet` supports convenient JSON encoding and decoding via the `(*Pipeline).JSON` method. For example:
+
+```go
+type Person struct {
+    Name string `json:"name"`
+    Age  int    `json:"age"`
+}
+
+// Set a person
+// Unknown argument types are automatically encoded to JSON.
+err := client.Command(ctx, "SET", "person", Person{
+    Name: "Alice",
+    Age:  30,
+}).Ok()
+// check error
+
+// Get a person
+var p Person
+client.Command(ctx, "GET", "person").JSON(&p)
+// check error
+
+// p == Person{Name: "Alice", Age: 30}
+```
 
 ## Connection Pooling
 

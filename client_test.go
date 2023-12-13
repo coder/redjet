@@ -216,7 +216,7 @@ func TestClient_Integer(t *testing.T) {
 	require.Equal(t, 3, gotLen)
 }
 
-func TestClient_AnyType(t *testing.T) {
+func TestClient_Stringer(t *testing.T) {
 	t.Parallel()
 
 	_, client := redtest.StartRedisServer(t)
@@ -228,6 +228,30 @@ func TestClient_AnyType(t *testing.T) {
 	got, err := client.Command(ctx, "GET", "foo").String()
 	require.NoError(t, err)
 	require.EqualValues(t, "1h0m0s", got)
+}
+
+func TestClient_JSON(t *testing.T) {
+	t.Parallel()
+
+	_, client := redtest.StartRedisServer(t)
+
+	var v struct {
+		Foo string
+		Bar int
+	}
+
+	v.Foo = "bar"
+	v.Bar = 123
+
+	ctx := context.Background()
+	err := client.Command(ctx, "SET", "foo", v).Ok()
+	require.NoError(t, err)
+
+	resp := make(map[string]interface{})
+	err = client.Command(ctx, "GET", "foo").JSON(&resp)
+	require.NoError(t, err)
+	require.Equal(t, "bar", resp["Foo"])
+	require.Equal(t, float64(123), resp["Bar"])
 }
 
 func TestClient_MGet(t *testing.T) {

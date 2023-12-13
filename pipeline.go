@@ -3,6 +3,7 @@ package redjet
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -362,6 +363,15 @@ func (r *Pipeline) Bytes() ([]byte, error) {
 	var buf bytes.Buffer
 	_, err := r.WriteTo(&buf)
 	return buf.Bytes(), err
+}
+
+// JSON unmarshals the result into v.
+func (r *Pipeline) JSON(v interface{}) error {
+	b, err := r.Bytes()
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(b, v)
 }
 
 // String returns the result as a string.
