@@ -209,6 +209,24 @@ func (c *Client) newResult(conn *conn) *Pipeline {
 //
 // It is safe to keep a pipeline running for a long time, with many send and
 // receive cycles.
+//
+// Example:
+//
+//	p := client.Pipeline(ctx, nil, "SET", "foo", "bar")
+//	defer p.Close()
+//
+//	p = client.Pipeline(ctx, r, "GET", "foo")
+//	// Read the result of SET first.
+//	err := p.Ok()
+//	if err != nil {
+//		// handle error
+//	}
+//
+//	got, err := p.Bytes()
+//	if err != nil {
+//		// handle error
+//	}
+//	fmt.Println(string(got))
 func (c *Client) Pipeline(ctx context.Context, r *Pipeline, cmd string, args ...any) *Pipeline {
 	var err error
 	if r == nil {
