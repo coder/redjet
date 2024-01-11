@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ammario/redjet"
+	"github.com/coder/redjet"
 	"github.com/stretchr/testify/require"
 )
 

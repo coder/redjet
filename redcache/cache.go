@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ammario/redjet"
+	"github.com/coder/redjet"
 )
 
 // Cache is a simple cache implementation using Redis as a backend.

@@ -1,4 +1,4 @@
-module github.com/ammario/redjet/bench
+module github.com/coder/redjet/bench
 
 go 1.20
 
@@ -6,11 +6,11 @@ go 1.20
 // the main package with other Redis library dependencies.
 
 require (
-	github.com/ammario/redjet v0.0.0-20230703191230-a607112e096c
+	github.com/coder/redjet v0.0.0-20230703191230-a607112e096c
 	github.com/stretchr/testify v1.8.4
 )
 
-replace github.com/ammario/redjet => ../
+replace github.com/coder/redjet => ../
 
 require (
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect

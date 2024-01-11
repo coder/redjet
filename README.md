@@ -1,8 +1,8 @@
 # redjet
-[![Go Reference](https://pkg.go.dev/badge/github.com/ammario/redjet.svg)](https://pkg.go.dev/github.com/ammario/redjet)
-![ci](https://github.com/ammario/redjet/actions/workflows/ci.yaml/badge.svg)
-[![Coverage Status](https://coveralls.io/repos/github/ammario/redjet/badge.svg)](https://coveralls.io/github/ammario/redjet)
-[![Go Report Card](https://goreportcard.com/badge/github.com/ammario/redjet)](https://goreportcard.com/report/github.com/ammario/redjet)
+[![Go Reference](https://pkg.go.dev/badge/github.com/coder/redjet.svg)](https://pkg.go.dev/github.com/coder/redjet)
+![ci](https://github.com/coder/redjet/actions/workflows/ci.yaml/badge.svg)
+[![Coverage Status](https://coveralls.io/repos/github/coder/redjet/badge.svg)](https://coveralls.io/github/coder/redjet)
+[![Go Report Card](https://goreportcard.com/badge/github.com/coder/redjet)](https://goreportcard.com/report/github.com/coder/redjet)
 
 
 
@@ -23,14 +23,15 @@ is really a Pipeline of size 1.
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
 
-- [Basic Usage](#basic-usage)
-- [Streaming](#streaming)
-- [Pipelining](#pipelining)
-- [PubSub](#pubsub)
-- [JSON](#json)
-- [Connection Pooling](#connection-pooling)
-- [Benchmarks](#benchmarks)
-- [Limitations](#limitations)
+- [redjet](#redjet)
+  - [Basic Usage](#basic-usage)
+  - [Streaming](#streaming)
+  - [Pipelining](#pipelining)
+  - [PubSub](#pubsub)
+  - [JSON](#json)
+  - [Connection Pooling](#connection-pooling)
+  - [Benchmarks](#benchmarks)
+  - [Limitations](#limitations)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -39,7 +40,7 @@ is really a Pipeline of size 1.
 Install:
 
 ```bash
-go get github.com/ammario/redjet@latest
+go get github.com/coder/redjet@latest
 ```
 
 For the most part, you can interact with Redis using a familiar interface:
@@ -52,7 +53,7 @@ import (
     "fmt"
     "log"
 
-    "github.com/ammario/redjet"
+    "github.com/coder/redjet"
 )
 
 func main() {

@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ammario/redjet"
+	"github.com/coder/redjet"
 	"github.com/dustin/go-humanize"
 	redigo "github.com/gomodule/redigo/redis"
 	goredis "github.com/redis/go-redis/v9"

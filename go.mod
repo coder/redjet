@@ -1,4 +1,4 @@
-module github.com/ammario/redjet
+module github.com/coder/redjet
 
 go 1.20
 

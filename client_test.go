@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ammario/redjet"
-	"github.com/ammario/redjet/redtest"
+	"github.com/coder/redjet"
+	"github.com/coder/redjet/redtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
