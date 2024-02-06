@@ -125,6 +125,7 @@ for r.Next() {
         log.Fatal(err)
     }
 }
+p.Close() // allow the underlying connection to be reused.
 ```
 
 Fun fact: authentication happens over a pipeline, so it doesn't incur a round-trip.
