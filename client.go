@@ -80,12 +80,8 @@ func NewFromURL(rawURL string) (*Client, error) {
 		addr = u.Host
 	}
 
-	if !isUnixSocket {
-		if u.Port() != "" {
-			addr = net.JoinHostPort(addr, u.Port())
-		} else {
-			addr = net.JoinHostPort(addr, "6379")
-		}
+	if !isUnixSocket && u.Port() == "" {
+		addr = net.JoinHostPort(addr, "6379")
 	}
 
 	switch u.Scheme {
