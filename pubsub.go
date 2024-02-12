@@ -58,7 +58,7 @@ func (r *Pipeline) NextSubMessage() (*SubMessage, error) {
 
 func isSubscribeCmd(cmd string) bool {
 	switch cmd {
-	case "SUBSCRIBE", "PSUBSCRIBE", "UNSUBSCRIBE", "PUNSUBSCRIBE", "PING", "QUIT", "RESET":
+	case "SUBSCRIBE", "PSUBSCRIBE", "UNSUBSCRIBE", "PUNSUBSCRIBE", "QUIT", "RESET":
 		return true
 	default:
 		return false

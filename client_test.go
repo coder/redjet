@@ -19,6 +19,41 @@ import (
 	"go.uber.org/goleak"
 )
 
+func pingPong(t *testing.T, c *redjet.Client) {
+	ctx := context.Background()
+	got, err := c.Command(ctx, "PING").String()
+	require.NoError(t, err)
+	require.Equal(t, "PONG", got)
+}
+
+func TestNewFromURL(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Normal", func(t *testing.T) {
+		t.Parallel()
+
+		addr, _ := redtest.StartRedisServer(t)
+
+		c, err := redjet.NewFromURL("redis://" + addr)
+		require.NoError(t, err)
+		defer c.Close()
+
+		pingPong(t, c)
+	})
+
+	t.Run("Password", func(t *testing.T) {
+		t.Parallel()
+
+		addr, _ := redtest.StartRedisServer(t, "--requirepass", "hunter2")
+
+		c, err := redjet.NewFromURL("redis://:hunter2@" + addr)
+		require.NoError(t, err)
+		defer c.Close()
+
+		pingPong(t, c)
+	})
+}
+
 func TestClient_SetGet(t *testing.T) {
 	t.Parallel()
 
@@ -313,33 +348,50 @@ func TestClient_Auth(t *testing.T) {
 func TestClient_PubSub(t *testing.T) {
 	t.Parallel()
 
-	_, client := redtest.StartRedisServer(t)
+	t.Run("NoCommand", func(t *testing.T) {
+		_, client := redtest.StartRedisServer(t)
 
-	ctx := context.Background()
-	subCmd := client.Command(ctx, "SUBSCRIBE", "foo")
-	defer subCmd.Close()
+		ctx := context.Background()
+		subCmd := client.Command(ctx, "SUBSCRIBE", "foo")
+		defer subCmd.Close()
 
-	msg, err := subCmd.NextSubMessage()
-	require.NoError(t, err)
+		_, err := subCmd.NextSubMessage()
+		require.Error(t, err)
+	})
 
-	require.Equal(t, &redjet.SubMessage{
-		Channel: "foo",
-		Type:    "subscribe",
-		Payload: "1",
-	}, msg)
+	t.Run("OK", func(t *testing.T) {
+		_, client := redtest.StartRedisServer(t)
 
-	n, err := client.Command(ctx, "PUBLISH", "foo", "bar").Int()
-	require.NoError(t, err)
-	require.Equal(t, 1, n)
+		ctx := context.Background()
 
-	msg, err = subCmd.NextSubMessage()
-	require.NoError(t, err)
+		subCmd := client.Pipeline(ctx, nil, "SUBSCRIBE", "foo")
+		defer subCmd.Close()
 
-	require.Equal(t, &redjet.SubMessage{
-		Channel: "foo",
-		Type:    "message",
-		Payload: "bar",
-	}, msg)
+		msg, err := subCmd.NextSubMessage()
+		require.NoError(t, err)
+
+		require.Equal(t, &redjet.SubMessage{
+			Channel: "foo",
+			Type:    "subscribe",
+			Payload: "1",
+		}, msg)
+
+		pubPipe := client.Pipeline(ctx, nil, "PUBLISH", "foo", "bar")
+		defer pubPipe.Close()
+
+		n, err := pubPipe.Int()
+		require.NoError(t, err)
+		require.Equal(t, 1, n)
+
+		msg, err = subCmd.NextSubMessage()
+		require.NoError(t, err)
+
+		require.Equal(t, &redjet.SubMessage{
+			Channel: "foo",
+			Type:    "message",
+			Payload: "bar",
+		}, msg)
+	})
 }
 
 func TestClient_ConnReuse(t *testing.T) {

@@ -3,11 +3,13 @@ package redjet
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -56,6 +58,62 @@ func New(addr string) *Client {
 		},
 	}
 	return c
+}
+
+func NewFromURL(rawURL string) (*Client, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse url: %w", err)
+	}
+
+	client := New(u.Host)
+
+	var (
+		addr         string
+		isUnixSocket bool
+	)
+	if u.Host == "" && u.Path != "" {
+		// Likely using a unix socket.
+		addr = u.Path
+		isUnixSocket = true
+	} else {
+		addr = u.Host
+	}
+
+	if !isUnixSocket {
+		if u.Port() != "" {
+			addr = net.JoinHostPort(addr, u.Port())
+		} else {
+			addr = net.JoinHostPort(addr, "6379")
+		}
+	}
+
+	switch u.Scheme {
+	case "redis":
+		client.Dial = func(ctx context.Context) (net.Conn, error) {
+			var d net.Dialer
+			proto := "tcp"
+			if isUnixSocket {
+				proto = "unix"
+			}
+			return d.DialContext(ctx, proto, addr)
+		}
+	case "rediss":
+		client.Dial = func(ctx context.Context) (net.Conn, error) {
+			var d tls.Dialer
+			return d.DialContext(ctx, "tcp", addr)
+		}
+	default:
+		return nil, fmt.Errorf("unsupported scheme: %s", u.Scheme)
+	}
+
+	if u.User != nil {
+		client.AuthUsername = u.User.Username()
+		pass, _ := u.User.Password()
+		client.AuthPassword = pass
+	}
+
+	return client, nil
 }
 
 func (c *Client) initPool() {
@@ -294,6 +352,13 @@ func (c *Client) Pipeline(ctx context.Context, r *Pipeline, cmd string, args ...
 //
 // The caller should call Close on the result when finished with it.
 func (c *Client) Command(ctx context.Context, cmd string, args ...any) *Pipeline {
+	if isSubscribeCmd(cmd) {
+		return &Pipeline{
+			// Close behavior becomes confusing when combining subscription
+			// and CloseOnRead.
+			err: fmt.Errorf("cannot use Command with subscribe command %s, use Pipeline instead", cmd),
+		}
+	}
 	r := c.Pipeline(ctx, nil, cmd, args...)
 	r.CloseOnRead = true
 	return r
