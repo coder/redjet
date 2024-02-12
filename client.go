@@ -29,19 +29,11 @@ type Client struct {
 	// Dial is the function used to create new connections.
 	Dial func(ctx context.Context) (net.Conn, error)
 
-	// AuthUsername is the username used for authentication.
+	// Setup is called after a new connection is established, but before any
+	// commands are sent. It is useful for selecting a database or authenticating.
 	//
-	// If set, AuthPassword must also be set. If not using Redis ACLs, just
-	// set AuthPassword.
-	//
-	// See more: https://redis.io/commands/auth/
-	AuthUsername string
-	// AuthPassword is the password used for authentication.
-	// Authentication must be set before any other commands are sent, and
-	// must not change during the lifetime of the client.
-	//
-	// See more: https://redis.io/commands/auth/
-	AuthPassword string
+	// See SetupAuth for authenticating with a username and password.
+	Setup func(ctx context.Context, client *Client, pipe *Pipeline) error
 
 	poolMu sync.Mutex
 	pool   *connPool
@@ -104,9 +96,8 @@ func NewFromURL(rawURL string) (*Client, error) {
 	}
 
 	if u.User != nil {
-		client.AuthUsername = u.User.Username()
 		pass, _ := u.User.Password()
-		client.AuthPassword = pass
+		client.Setup = SetupAuth(u.User.Username(), pass)
 	}
 
 	return client, nil
@@ -164,28 +155,45 @@ func (c *Client) getConn(ctx context.Context) (*Pipeline, error) {
 
 	r := c.newResult(conn)
 
-	if c.AuthUsername == "" && c.AuthPassword == "" {
-		return r, nil
-	}
-
-	if c.AuthUsername != "" && c.AuthPassword == "" {
-		nc.Close()
-		return nil, errors.New("auth username set but password not set")
-	}
-
-	if c.AuthUsername != "" {
-		r = c.Pipeline(ctx, r, "AUTH", c.AuthUsername, c.AuthPassword)
-	} else {
-		r = c.Pipeline(ctx, r, "AUTH", c.AuthPassword)
-	}
-
-	err = r.Ok()
-	if err != nil {
-		nc.Close()
-		return nil, fmt.Errorf("auth: %w", err)
+	if c.Setup != nil {
+		err = c.Setup(ctx, c, r)
+		if err != nil {
+			nc.Close()
+			return nil, fmt.Errorf("setup: %w", err)
+		}
 	}
 
 	return r, nil
+}
+
+// SetupAuth returns a Setup function that authenticates with the given username and password.
+//
+// AuthUsername is the username used for authentication.
+//
+// If set, AuthPassword must also be set. If not using Redis ACLs, just
+// set AuthPassword.
+//
+// See more: https://redis.io/commands/auth/
+// AuthPassword is the password used for authentication.
+// Authentication must be set before any other commands are sent, and
+// must not change during the lifetime of the client.
+//
+// See more: https://redis.io/commands/auth/
+func SetupAuth(
+	username string,
+	password string,
+) func(ctx context.Context, client *Client, pipe *Pipeline) error {
+	return func(ctx context.Context, client *Client, pipe *Pipeline) error {
+		switch {
+		case username != "" && password != "":
+			pipe = client.Pipeline(ctx, pipe, "AUTH", username, password)
+		case password != "":
+			pipe = client.Pipeline(ctx, pipe, "AUTH", password)
+		default:
+			return fmt.Errorf("username is set but password is not")
+		}
+		return pipe.Ok()
+	}
 }
 
 func (c *Client) putConn(conn *conn) {

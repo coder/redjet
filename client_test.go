@@ -332,7 +332,10 @@ func TestClient_Auth(t *testing.T) {
 
 		_, client := redtest.StartRedisServer(t, "--requirepass", password)
 		ctx := context.Background()
-		client.AuthPassword = password
+		client.Setup = redjet.SetupAuth(
+			"",
+			password,
+		)
 
 		// It's imperative to test both SET and GET because the response
 		// of SET matches the response of AUTH.

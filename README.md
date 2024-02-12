@@ -128,9 +128,6 @@ for r.Next() {
 p.Close() // allow the underlying connection to be reused.
 ```
 
-Fun fact: authentication happens over a pipeline, so it doesn't incur a round-trip.
-
-
 ## PubSub
 
 redjet suports PubSub via the `NextSubMessage` method. For example:
