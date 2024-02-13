@@ -310,6 +310,10 @@ func (r *Pipeline) writeTo(w io.Writer) (int64, replyType, error) {
 		}
 
 		isNewArray := typ == '*'
+
+		var n int
+		n, r.err = w.Write(s)
+		incrRead()
 		var newArraySize int
 		if isNewArray {
 			var err error
@@ -321,17 +325,6 @@ func (r *Pipeline) writeTo(w io.Writer) (int64, replyType, error) {
 			if newArraySize > 0 {
 				r.arrayStack = append(r.arrayStack, newArraySize)
 			}
-		}
-
-		var n int
-		n, r.err = w.Write(s)
-		if !isNewArray {
-			// On new arrays, we don't want to advance any state
-			// as we've just modified the array stack.
-			incrRead()
-		} else if newArraySize == 0 {
-			// Nil array, so we want to advance pipeline.
-			incrRead()
 		}
 		return int64(n), typ, r.err
 	case replyTypeBulkString:
@@ -418,6 +411,10 @@ func (r *Pipeline) ArrayLength() (int, error) {
 	// -1 is a nil array.
 	if gotN <= 0 {
 		return gotN, nil
+	}
+
+	if len(r.arrayStack) == 0 {
+		return 0, fmt.Errorf("bug: array stack not set")
 	}
 
 	// Sanity check that we've populated the array stack correctly.
