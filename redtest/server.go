@@ -31,7 +31,9 @@ func (w *testWriter) Write(p []byte) (int, error) {
 }
 
 func StartRedisServer(t testing.TB, args ...string) (string, *redjet.Client) {
-	socket := filepath.Join(t.TempDir(), "redis.sock")
+	// Use short-hand r.sock instead of redis.sock since redis has a 104
+	// character limit on unix socket paths.
+	socket := filepath.Join(t.TempDir(), "r.sock")
 	serverCmd := exec.Command(
 		"redis-server", "--unixsocket", socket, "--loglevel", "debug",
 		"--port", "0",

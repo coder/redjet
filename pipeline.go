@@ -483,18 +483,6 @@ func (r *Pipeline) Close() error {
 }
 
 func (r *Pipeline) close() error {
-	for r.hasMore() {
-		// Read the result into discard so that the connection can be reused.
-		_, _, err := r.writeTo(io.Discard)
-		if errors.Is(err, errClosed) {
-			// Should be impossible to close a result without draining
-			// it, in which case at == end and we would never get here.
-			return fmt.Errorf("SEVERE: result closed while iterating")
-		} else if err != nil {
-			return fmt.Errorf("drain: %w", err)
-		}
-	}
-
 	if !atomic.CompareAndSwapInt64(&r.closed, 0, 1) {
 		// double-close
 		return nil
@@ -507,7 +495,8 @@ func (r *Pipeline) close() error {
 	conn := r.conn
 	// r.conn is set to nil to prevent accidental reuse.
 	r.conn = nil
-	if r.err == nil && !r.subscribeMode {
+	// Only return conn when it is in a known good state.
+	if r.err == nil && !r.subscribeMode && !r.hasMore() {
 		r.client.putConn(conn)
 		return nil
 	}

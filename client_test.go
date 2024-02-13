@@ -146,19 +146,35 @@ func TestClient_Race(t *testing.T) {
 func TestClient_IdleDrain(t *testing.T) {
 	t.Parallel()
 
-	_, client := redtest.StartRedisServer(t)
+	t.Run("Unexpected", func(t *testing.T) {
+		t.Parallel()
+		_, client := redtest.StartRedisServer(t)
 
-	require.Equal(t, 0, client.PoolStats().FreeConns)
+		require.Equal(t, 0, client.PoolStats().FreeConns)
 
-	err := client.Command(context.Background(), "SET", "foo", "bar").Close()
-	require.NoError(t, err)
+		// Close comes before reading result.
+		err := client.Command(context.Background(), "SET", "foo", "bar").Close()
+		require.NoError(t, err)
 
-	require.Equal(t, 1, client.PoolStats().FreeConns)
+		// Connection not returned to pool.
+		require.Equal(t, 0, client.PoolStats().FreeConns)
+	})
 
-	// After the idle timeout, the connection should be drained.
-	require.Eventually(t, func() bool {
-		return client.PoolStats().FreeConns == 0
-	}, time.Second, 10*time.Millisecond)
+	t.Run("Regular", func(t *testing.T) {
+		t.Parallel()
+		_, client := redtest.StartRedisServer(t)
+
+		require.Equal(t, 0, client.PoolStats().FreeConns)
+		err := client.Command(context.Background(), "SET", "foo", "bar").Ok()
+		require.NoError(t, err)
+
+		require.Equal(t, 1, client.PoolStats().FreeConns)
+
+		// After the idle timeout, the connection should be drained.
+		require.Eventually(t, func() bool {
+			return client.PoolStats().FreeConns == 0
+		}, time.Second, 10*time.Millisecond)
+	})
 }
 
 func TestClient_ShortRead(t *testing.T) {
