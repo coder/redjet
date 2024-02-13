@@ -282,7 +282,7 @@ func (r *Pipeline) writeTo(w io.Writer) (int64, replyType, error) {
 	typ := replyType(typByte)
 
 	// incrRead is how we advance the read state machine.
-	incrRead := func() {
+	incrRead := func(isNewArray bool) {
 		if len(r.arrayStack) == 0 {
 			r.pipeline.at++
 			return
@@ -292,7 +292,10 @@ func (r *Pipeline) writeTo(w io.Writer) (int64, replyType, error) {
 		i := len(r.arrayStack) - 1
 		r.arrayStack[i] = r.arrayStack[i] - 1
 
-		if r.arrayStack[i] == 0 {
+		// We don't do this cleanup on new arrays so that
+		// we can support stacks like [0, 2] for the final
+		// list in a series of lists.
+		if r.arrayStack[i] == 0 && !isNewArray {
 			r.arrayStack = r.arrayStack[:i]
 			// This was just cleanup, we move the pipeline forward.
 			r.pipeline.at++
@@ -313,7 +316,7 @@ func (r *Pipeline) writeTo(w io.Writer) (int64, replyType, error) {
 
 		var n int
 		n, r.err = w.Write(s)
-		incrRead()
+		incrRead(isNewArray)
 		var newArraySize int
 		if isNewArray {
 			var err error
@@ -331,7 +334,7 @@ func (r *Pipeline) writeTo(w io.Writer) (int64, replyType, error) {
 		// Bulk string
 		var n int
 		n, r.err = readBulkString(w, r.conn, r.conn.rd, r.conn.miscBuf)
-		incrRead()
+		incrRead(false)
 		return int64(n), typ, r.err
 	case replyTypeError:
 		// Error
@@ -339,7 +342,7 @@ func (r *Pipeline) writeTo(w io.Writer) (int64, replyType, error) {
 		if r.err != nil {
 			return 0, typ, r.err
 		}
-		incrRead()
+		incrRead(false)
 		return 0, typ, &Error{
 			raw: string(s),
 		}
