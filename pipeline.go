@@ -452,11 +452,11 @@ func (r *Pipeline) Next() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	return r.hasMore()
+	return r.HasMore()
 }
 
-// hasMore returns true if there are more results to read.
-func (r *Pipeline) hasMore() bool {
+// HasMore returns true if there are more results to read.
+func (r *Pipeline) HasMore() bool {
 	if r.err != nil {
 		return false
 	}
@@ -496,7 +496,7 @@ func (r *Pipeline) close() error {
 	// r.conn is set to nil to prevent accidental reuse.
 	r.conn = nil
 	// Only return conn when it is in a known good state.
-	if r.err == nil && !r.subscribeMode && !r.hasMore() {
+	if r.err == nil && !r.subscribeMode && !r.HasMore() {
 		r.client.putConn(conn)
 		return nil
 	}
