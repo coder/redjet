@@ -21,7 +21,7 @@ type Error struct {
 }
 
 func (e *Error) Error() string {
-	return e.raw
+	return "server: " + e.raw
 }
 
 // IsUnknownCommand returns whether err is an "unknown command" error.
