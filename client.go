@@ -10,6 +10,7 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -290,22 +291,26 @@ func (c *Client) newResult(conn *conn) *Pipeline {
 //		// handle error
 //	}
 //	fmt.Println(string(got))
-func (c *Client) Pipeline(ctx context.Context, r *Pipeline, cmd string, args ...any) *Pipeline {
+func (c *Client) Pipeline(ctx context.Context, p *Pipeline, cmd string, args ...any) *Pipeline {
 	var err error
-	if r == nil {
-		r, err = c.getConn(ctx)
+	if p == nil {
+		p, err = c.getConn(ctx)
 		if err != nil {
 			return &Pipeline{
 				err: fmt.Errorf("get conn: %w", err),
 			}
 		}
 
-		// We must take great care that Close is eventually called on the result.
+		// We must take great care that Close is eventually called on the pipeline to
+		// avoid leaking connections.
+		runtime.SetFinalizer(p, func(p *Pipeline) {
+			p.Close()
+		})
 		go func() {
 			select {
 			case <-ctx.Done():
-				r.Close()
-			case <-r.closeCh:
+				p.Close()
+			case <-p.closeCh:
 			}
 		}()
 	}
@@ -314,39 +319,39 @@ func (c *Client) Pipeline(ctx context.Context, r *Pipeline, cmd string, args ...
 	// Redis already gives a nice error if we send a non-subscribe command
 	// while in subscribe mode.
 	if isSubscribeCmd(cmd) {
-		r.subscribeMode = true
+		p.subscribeMode = true
 	}
 
 	// We're instructing redis that we're sending an array of the command
 	// and its arguments.
-	r.conn.wr.WriteByte('*')
-	r.conn.wr.WriteString(strconv.Itoa(len(args) + 1))
-	r.conn.wr.Write(crlf)
+	p.conn.wr.WriteByte('*')
+	p.conn.wr.WriteString(strconv.Itoa(len(args) + 1))
+	p.conn.wr.Write(crlf)
 
-	writeBulkString(r.conn.wr, cmd)
+	writeBulkString(p.conn.wr, cmd)
 
 	for _, arg := range args {
 		switch arg := arg.(type) {
 		case string:
-			writeBulkString(r.conn.wr, arg)
+			writeBulkString(p.conn.wr, arg)
 		case []byte:
-			writeBulkBytes(r.conn.wr, arg)
+			writeBulkBytes(p.conn.wr, arg)
 		case LenReader:
-			writeBulkReader(r.conn.wr, arg)
+			writeBulkReader(p.conn.wr, arg)
 		case fmt.Stringer:
-			writeBulkString(r.conn.wr, arg.String())
+			writeBulkString(p.conn.wr, arg.String())
 		default:
 			v, err := json.Marshal(arg)
 			if err != nil {
 				// It's relatively rare to get an error here.
 				panic(fmt.Sprintf("failed to marshal %T: %v", arg, err))
 			}
-			writeBulkBytes(r.conn.wr, v)
+			writeBulkBytes(p.conn.wr, v)
 		}
 	}
 
-	r.pipeline.end++
-	return r
+	p.pipeline.end++
+	return p
 }
 
 // Command sends a command to the server and returns the result. The error
