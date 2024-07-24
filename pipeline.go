@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"strconv"
 	"strings"
 	"sync"
@@ -111,7 +110,7 @@ var (
 	_ grower = (*strings.Builder)(nil)
 )
 
-func readBulkString(w io.Writer, c net.Conn, rd *bufio.Reader, copyBuf []byte) (int, error) {
+func readBulkString(w io.Writer, rd *bufio.Reader, copyBuf []byte) (int, error) {
 	newlineBuf, err := readUntilNewline(rd, copyBuf)
 	if err != nil {
 		return 0, err
@@ -333,7 +332,7 @@ func (r *Pipeline) writeTo(w io.Writer) (int64, replyType, error) {
 	case replyTypeBulkString:
 		// Bulk string
 		var n int
-		n, r.err = readBulkString(w, r.conn, r.conn.rd, r.conn.miscBuf)
+		n, r.err = readBulkString(w, r.conn.rd, r.conn.miscBuf)
 		incrRead(false)
 		return int64(n), typ, r.err
 	case replyTypeError:
