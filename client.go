@@ -137,7 +137,7 @@ func (c *Client) PoolStats() PoolStats {
 func (c *Client) getConn(ctx context.Context) (*Pipeline, error) {
 	c.initPool()
 
-	if conn, ok := c.pool.tryGet(ctx); ok {
+	if conn, ok := c.pool.tryGet(); ok {
 		return c.newResult(conn), nil
 	}
 

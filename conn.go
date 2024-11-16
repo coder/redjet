@@ -2,7 +2,6 @@ package redjet
 
 import (
 	"bufio"
-	"context"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -97,7 +96,7 @@ func (p *connPool) cleanLoop() {
 
 // tryGet tries to get a connection from the pool. If there are no free
 // connections, it returns false.
-func (p *connPool) tryGet(ctx context.Context) (*conn, bool) {
+func (p *connPool) tryGet() (*conn, bool) {
 	p.cleanMu.Lock()
 	defer p.cleanMu.Unlock()
 
