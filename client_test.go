@@ -84,7 +84,7 @@ func TestClient_NotFound(t *testing.T) {
 	ctx := context.Background()
 
 	got, err := client.Command(ctx, "GET", "brah").String()
-	require.NoError(t, err)
+	require.ErrorIs(t, err, redjet.ErrNil)
 	require.Equal(t, "", got)
 }
 
@@ -284,25 +284,37 @@ func TestClient_Stringer(t *testing.T) {
 func TestClient_JSON(t *testing.T) {
 	t.Parallel()
 
-	_, client := redtest.StartRedisServer(t)
+	t.Run("GetSet", func(t *testing.T) {
+		t.Parallel()
+		_, client := redtest.StartRedisServer(t)
 
-	var v struct {
-		Foo string
-		Bar int
-	}
+		var v struct {
+			Foo string
+			Bar int
+		}
 
-	v.Foo = "bar"
-	v.Bar = 123
+		v.Foo = "bar"
+		v.Bar = 123
 
-	ctx := context.Background()
-	err := client.Command(ctx, "SET", "foo", v).Ok()
-	require.NoError(t, err)
+		ctx := context.Background()
+		err := client.Command(ctx, "SET", "foo", v).Ok()
+		require.NoError(t, err)
 
-	resp := make(map[string]interface{})
-	err = client.Command(ctx, "GET", "foo").JSON(&resp)
-	require.NoError(t, err)
-	require.Equal(t, "bar", resp["Foo"])
-	require.Equal(t, float64(123), resp["Bar"])
+		resp := make(map[string]interface{})
+		err = client.Command(ctx, "GET", "foo").JSON(&resp)
+		require.NoError(t, err)
+		require.Equal(t, "bar", resp["Foo"])
+		require.Equal(t, float64(123), resp["Bar"])
+	})
+	t.Run("NotFound", func(t *testing.T) {
+		t.Parallel()
+		_, client := redtest.StartRedisServer(t)
+
+		var resp map[string]interface{}
+		ctx := context.Background()
+		err := client.Command(ctx, "GET", "foo").JSON(&resp)
+		require.ErrorIs(t, err, redjet.ErrNil)
+	})
 }
 
 func TestClient_MGet(t *testing.T) {
@@ -326,6 +338,23 @@ func TestClient_MGet(t *testing.T) {
 	got, err := client.Command(ctx, "MGET", "a", "b", "c").Strings()
 	require.NoError(t, err, "read %+v", got)
 	require.Equal(t, []string{"antelope", "bat", "cat"}, got)
+}
+
+func TestClient_MGet_Nil(t *testing.T) {
+	t.Parallel()
+
+	_, client := redtest.StartRedisServer(t)
+
+	ctx := context.Background()
+	// Only set first and last keys.
+	err := client.Command(ctx, "MSET", "a", "antelope", "c", "cat").Ok()
+	require.NoError(t, err)
+
+	// As a special case of handling nil, we return empty strings for
+	// missing keys.
+	got, err := client.Command(ctx, "MGET", "a", "b", "c").Strings()
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"antelope", "", "cat"}, got)
 }
 
 func TestClient_Auth(t *testing.T) {

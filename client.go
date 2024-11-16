@@ -297,7 +297,7 @@ func (c *Client) Pipeline(ctx context.Context, p *Pipeline, cmd string, args ...
 		p, err = c.getConn(ctx)
 		if err != nil {
 			return &Pipeline{
-				err: fmt.Errorf("get conn: %w", err),
+				protoErr: fmt.Errorf("get conn: %w", err),
 			}
 		}
 
@@ -365,7 +365,7 @@ func (c *Client) Command(ctx context.Context, cmd string, args ...any) *Pipeline
 		return &Pipeline{
 			// Close behavior becomes confusing when combining subscription
 			// and CloseOnRead.
-			err: fmt.Errorf("cannot use Command with subscribe command %s, use Pipeline instead", cmd),
+			protoErr: fmt.Errorf("cannot use Command with subscribe command %s, use Pipeline instead", cmd),
 		}
 	}
 	r := c.Pipeline(ctx, nil, cmd, args...)

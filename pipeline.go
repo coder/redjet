@@ -62,7 +62,8 @@ type Pipeline struct {
 	closeCh chan struct{}
 	closed  int64
 
-	err error
+	// protoErr is set to non-nil if there is an unrecoverable protocol error.
+	protoErr error
 
 	conn   *conn
 	client *Client
@@ -77,10 +78,10 @@ type Pipeline struct {
 func (r *Pipeline) Error() string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.err == nil {
+	if r.protoErr == nil {
 		return ""
 	}
-	return r.err.Error()
+	return r.protoErr.Error()
 }
 
 // readUntilNewline reads until a newline, returning the bytes without the newline.
@@ -110,6 +111,10 @@ var (
 	_ grower = (*strings.Builder)(nil)
 )
 
+// ErrNil is a nil value. For example, it is returned for missing keys in
+// GET and MGET.
+var ErrNil = errors.New("(nil)")
+
 func readBulkString(w io.Writer, rd *bufio.Reader, copyBuf []byte) (int, error) {
 	newlineBuf, err := readUntilNewline(rd, copyBuf)
 	if err != nil {
@@ -123,7 +128,7 @@ func readBulkString(w io.Writer, rd *bufio.Reader, copyBuf []byte) (int, error) 
 
 	// n == -1 signals a nil value.
 	if stringSize <= 0 {
-		return 0, nil
+		return 0, ErrNil
 	}
 
 	if g, ok := w.(grower); ok {
@@ -231,7 +236,7 @@ func (r *Pipeline) Strings() ([]string, error) {
 	var ss []string
 	for i := 0; i < ln; i++ {
 		s, err := r.String()
-		if err != nil {
+		if err != nil && !errors.Is(err, ErrNil) {
 			return ss, fmt.Errorf("read string %d: %w", i, err)
 		}
 		ss = append(ss, s)
@@ -258,25 +263,25 @@ func (r *Pipeline) writeTo(w io.Writer) (int64, replyType, error) {
 		return 0, 0, err
 	}
 
-	if r.err != nil {
-		return 0, 0, r.err
+	if r.protoErr != nil {
+		return 0, 0, r.protoErr
 	}
 
 	if r.pipeline.at == r.pipeline.end && len(r.arrayStack) == 0 && !r.subscribeMode {
 		return 0, 0, fmt.Errorf("no more results")
 	}
 
-	r.err = r.conn.wr.Flush()
-	if r.err != nil {
-		r.err = fmt.Errorf("flush: %w", r.err)
-		return 0, 0, r.err
+	r.protoErr = r.conn.wr.Flush()
+	if r.protoErr != nil {
+		r.protoErr = fmt.Errorf("flush: %w", r.protoErr)
+		return 0, 0, r.protoErr
 	}
 
 	var typByte byte
-	typByte, r.err = r.conn.rd.ReadByte()
-	if r.err != nil {
-		r.err = fmt.Errorf("read type: %w", r.err)
-		return 0, 0, r.err
+	typByte, r.protoErr = r.conn.rd.ReadByte()
+	if r.protoErr != nil {
+		r.protoErr = fmt.Errorf("read type: %w", r.protoErr)
+		return 0, 0, r.protoErr
 	}
 	typ := replyType(typByte)
 
@@ -306,15 +311,15 @@ func (r *Pipeline) writeTo(w io.Writer) (int64, replyType, error) {
 	switch typ {
 	case replyTypeSimpleString, replyTypeInteger, replyTypeArray:
 		// Simple string or integer
-		s, r.err = readUntilNewline(r.conn.rd, r.conn.miscBuf)
-		if r.err != nil {
-			return 0, typ, r.err
+		s, r.protoErr = readUntilNewline(r.conn.rd, r.conn.miscBuf)
+		if r.protoErr != nil {
+			return 0, typ, r.protoErr
 		}
 
 		isNewArray := typ == '*'
 
 		var n int
-		n, r.err = w.Write(s)
+		n, r.protoErr = w.Write(s)
 		incrRead(isNewArray)
 		var newArraySize int
 		if isNewArray {
@@ -328,26 +333,33 @@ func (r *Pipeline) writeTo(w io.Writer) (int64, replyType, error) {
 				r.arrayStack = append(r.arrayStack, newArraySize)
 			}
 		}
-		return int64(n), typ, r.err
+		return int64(n), typ, r.protoErr
 	case replyTypeBulkString:
 		// Bulk string
-		var n int
-		n, r.err = readBulkString(w, r.conn.rd, r.conn.miscBuf)
+		var (
+			n   int
+			err error
+		)
+		n, err = readBulkString(w, r.conn.rd, r.conn.miscBuf)
 		incrRead(false)
-		return int64(n), typ, r.err
+		// A nil is highly recoverable.
+		if !errors.Is(err, ErrNil) {
+			r.protoErr = err
+		}
+		return int64(n), typ, err
 	case replyTypeError:
 		// Error
-		s, r.err = readUntilNewline(r.conn.rd, r.conn.miscBuf)
-		if r.err != nil {
-			return 0, typ, r.err
+		s, r.protoErr = readUntilNewline(r.conn.rd, r.conn.miscBuf)
+		if r.protoErr != nil {
+			return 0, typ, r.protoErr
 		}
 		incrRead(false)
 		return 0, typ, &Error{
 			raw: string(s),
 		}
 	default:
-		r.err = fmt.Errorf("unknown type %q", typ)
-		return 0, typ, r.err
+		r.protoErr = fmt.Errorf("unknown type %q", typ)
+		return 0, typ, r.protoErr
 	}
 }
 
@@ -456,7 +468,7 @@ func (r *Pipeline) Next() bool {
 
 // HasMore returns true if there are more results to read.
 func (r *Pipeline) HasMore() bool {
-	if r.err != nil {
+	if r.protoErr != nil {
 		return false
 	}
 
@@ -495,7 +507,7 @@ func (r *Pipeline) close() error {
 	// r.conn is set to nil to prevent accidental reuse.
 	r.conn = nil
 	// Only return conn when it is in a known good state.
-	if r.err == nil && !r.subscribeMode && !r.HasMore() {
+	if r.protoErr == nil && !r.subscribeMode && !r.HasMore() {
 		r.client.putConn(conn)
 		return nil
 	}
